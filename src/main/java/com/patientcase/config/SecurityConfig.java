@@ -1,6 +1,7 @@
 package com.patientcase.config;
 
 import com.patientcase.security.UserDetailsServiceImpl;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -13,6 +14,9 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
+import org.springframework.security.web.authentication.logout.LogoutSuccessHandler;
+import org.springframework.security.web.authentication.logout.SecurityContextLogoutHandler;
+import org.springframework.security.authentication.event.LogoutSuccessEvent;
 import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
 
 @Configuration
@@ -21,9 +25,12 @@ import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWrite
 public class SecurityConfig {
 
     private final UserDetailsServiceImpl userDetailsService;
+    private final ApplicationEventPublisher eventPublisher;
 
-    public SecurityConfig(UserDetailsServiceImpl userDetailsService) {
+    public SecurityConfig(UserDetailsServiceImpl userDetailsService,
+                          ApplicationEventPublisher eventPublisher) {
         this.userDetailsService = userDetailsService;
+        this.eventPublisher = eventPublisher;
     }
 
     @Bean
@@ -70,7 +77,8 @@ public class SecurityConfig {
             )
             .logout(logout -> logout
                 .logoutUrl("/logout")
-                .logoutSuccessUrl("/login?logout=true")
+                .logoutSuccessHandler(logoutSuccessHandler())
+                .addLogoutHandler(new SecurityContextLogoutHandler())
                 .invalidateHttpSession(true)
                 .deleteCookies("JSESSIONID")
                 .permitAll()
@@ -96,6 +104,16 @@ public class SecurityConfig {
     public AuthenticationSuccessHandler authenticationSuccessHandler() {
         return (request, response, authentication) -> {
             response.sendRedirect("/dashboard");
+        };
+    }
+
+    @Bean
+    public LogoutSuccessHandler logoutSuccessHandler() {
+        return (request, response, authentication) -> {
+            if (authentication != null) {
+                eventPublisher.publishEvent(new LogoutSuccessEvent(authentication));
+            }
+            response.sendRedirect("/login?logout=true");
         };
     }
 }

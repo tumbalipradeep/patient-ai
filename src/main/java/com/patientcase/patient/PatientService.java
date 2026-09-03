@@ -5,22 +5,23 @@ import com.patientcase.audit.AuditService;
 import com.patientcase.common.ResourceNotFoundException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
-import java.util.concurrent.atomic.AtomicLong;
 
 @Service
 public class PatientService {
 
     private final PatientRepository patientRepository;
     private final AuditService auditService;
+    private final JdbcTemplate jdbcTemplate;
 
-    public PatientService(PatientRepository patientRepository, AuditService auditService) {
+    public PatientService(PatientRepository patientRepository,
+                          AuditService auditService,
+                          JdbcTemplate jdbcTemplate) {
         this.patientRepository = patientRepository;
         this.auditService = auditService;
+        this.jdbcTemplate = jdbcTemplate;
     }
 
     @Transactional(readOnly = true)
@@ -95,8 +96,7 @@ public class PatientService {
     }
 
     private String generatePatientNumber() {
-        String prefix = "P-";
-        long count = patientRepository.count() + 1;
-        return prefix + String.format("%06d", count + 1000);
+        Long nextVal = jdbcTemplate.queryForObject("SELECT NEXTVAL('patient_number_seq')", Long.class);
+        return "P-" + String.format("%06d", nextVal);
     }
 }

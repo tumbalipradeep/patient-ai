@@ -127,6 +127,39 @@ public class EncounterController {
         }
     }
 
+    @PostMapping("/encounters/{id}/cancel")
+    public String cancelEncounter(@PathVariable Long id,
+                                   Authentication authentication,
+                                   RedirectAttributes redirectAttributes) {
+        Encounter encounter = encounterService.findById(id);
+        Long caseId = encounter.getPatientCase().getId();
+        try {
+            encounterService.cancelEncounter(id);
+            redirectAttributes.addFlashAttribute("successMessage", "Encounter cancelled.");
+        } catch (IllegalStateException e) {
+            redirectAttributes.addFlashAttribute("errorMessage", e.getMessage());
+        }
+        return "redirect:/cases/" + caseId;
+    }
+
+    @PostMapping("/encounters/{encounterId}/followups/{followUpId}/status")
+    public String updateFollowUpStatus(@PathVariable Long encounterId,
+                                        @PathVariable Long followUpId,
+                                        @RequestParam String status,
+                                        RedirectAttributes redirectAttributes) {
+        try {
+            com.patientcase.clinical.FollowUpStatus newStatus =
+                    com.patientcase.clinical.FollowUpStatus.valueOf(status);
+            encounterService.updateFollowUpStatus(followUpId, newStatus);
+            redirectAttributes.addFlashAttribute("successMessage", "Follow-up status updated.");
+        } catch (IllegalArgumentException e) {
+            redirectAttributes.addFlashAttribute("errorMessage", "Invalid status value.");
+        } catch (IllegalStateException e) {
+            redirectAttributes.addFlashAttribute("errorMessage", e.getMessage());
+        }
+        return "redirect:/encounters/" + encounterId;
+    }
+
     private CaseTakingForm buildCaseTakingForm(Encounter encounter, Long encounterId) {
         CaseTakingForm form = new CaseTakingForm();
         form.setEncounterId(encounterId);

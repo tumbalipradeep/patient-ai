@@ -176,16 +176,19 @@ public class EncounterService {
 
         // Save follow-up
         if (form.getFollowUpDate() != null && !form.getFollowUpDate().isBlank()) {
+            LocalDate parsedDate;
+            try {
+                parsedDate = LocalDate.parse(form.getFollowUpDate());
+            } catch (Exception e) {
+                throw new IllegalArgumentException("Follow-up date is not a valid date (expected YYYY-MM-DD): "
+                        + form.getFollowUpDate());
+            }
             followUpRepository.findByEncounterId(encounterId)
                     .forEach(f -> followUpRepository.delete(f));
             FollowUp followUp = new FollowUp();
             followUp.setEncounter(encounter);
             followUp.setPatientCase(encounter.getPatientCase());
-            try {
-                followUp.setFollowUpDate(LocalDate.parse(form.getFollowUpDate()));
-            } catch (Exception e) {
-                // ignore parse error
-            }
+            followUp.setFollowUpDate(parsedDate);
             followUp.setInstructions(form.getFollowUpInstructions());
             followUp.setNotes(form.getFollowUpNotes());
             followUp.setStatus(FollowUpStatus.PENDING);
@@ -221,5 +224,31 @@ public class EncounterService {
     @Transactional(readOnly = true)
     public List<Encounter> findRecentEncounters(int limit) {
         return encounterRepository.findRecentEncounters(PageRequest.of(0, limit));
+    }
+
+    @Transactional
+    public Encounter cancelEncounter(Long encounterId) {
+        Encounter encounter = findById(encounterId);
+        if (encounter.getStatus() == EncounterStatus.COMPLETED) {
+            throw new IllegalStateException("A completed encounter cannot be cancelled.");
+        }
+        if (encounter.getStatus() == EncounterStatus.CANCELLED) {
+            throw new IllegalStateException("Encounter is already cancelled.");
+        }
+        encounter.setStatus(EncounterStatus.CANCELLED);
+        Encounter saved = encounterRepository.save(encounter);
+        auditService.log(AuditAction.ENCOUNTER_UPDATED, "Encounter", saved.getId(), "Encounter cancelled");
+        return saved;
+    }
+
+    @Transactional
+    public FollowUp updateFollowUpStatus(Long followUpId, FollowUpStatus newStatus) {
+        FollowUp followUp = followUpRepository.findById(followUpId)
+                .orElseThrow(() -> new ResourceNotFoundException("Follow-up not found: " + followUpId));
+        if (followUp.getStatus() == FollowUpStatus.COMPLETED && newStatus != FollowUpStatus.COMPLETED) {
+            throw new IllegalStateException("A completed follow-up cannot be changed.");
+        }
+        followUp.setStatus(newStatus);
+        return followUpRepository.save(followUp);
     }
 }

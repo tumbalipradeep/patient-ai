@@ -19,6 +19,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -61,6 +62,28 @@ public class DocumentService {
         this.encounterRepository = encounterRepository;
         this.userRepository = userRepository;
         this.auditService = auditService;
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<Document> findById(Long id) {
+        return documentRepository.findById(id);
+    }
+
+    /**
+     * Returns the resolved, validated Path for downloading a document.
+     * Throws IllegalArgumentException if the stored path is outside the storage root.
+     * Throws ResourceNotFoundException if the file no longer exists on disk.
+     */
+    public Path resolveDownloadPath(Document document) {
+        Path storageDir = Paths.get(storagePath);
+        Path target = Paths.get(document.getStorageReference()).normalize();
+        if (!target.startsWith(storageDir)) {
+            throw new IllegalArgumentException("Invalid storage reference");
+        }
+        if (!Files.exists(target)) {
+            throw new ResourceNotFoundException("File not found on disk: " + document.getOriginalFilename());
+        }
+        return target;
     }
 
     @Transactional(readOnly = true)

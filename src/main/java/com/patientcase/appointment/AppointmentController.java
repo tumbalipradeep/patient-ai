@@ -1,9 +1,7 @@
 package com.patientcase.appointment;
 
 import com.patientcase.patient.PatientService;
-import com.patientcase.user.Role;
-import com.patientcase.user.User;
-import com.patientcase.user.UserRepository;
+import com.patientcase.user.UserService;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -22,14 +20,14 @@ public class AppointmentController {
 
     private final AppointmentService appointmentService;
     private final PatientService patientService;
-    private final UserRepository userRepository;
+    private final UserService userService;
 
     public AppointmentController(AppointmentService appointmentService,
                                   PatientService patientService,
-                                  UserRepository userRepository) {
+                                  UserService userService) {
         this.appointmentService = appointmentService;
         this.patientService = patientService;
-        this.userRepository = userRepository;
+        this.userService = userService;
     }
 
     @GetMapping
@@ -112,6 +110,6 @@ public class AppointmentController {
 
     private void populateFormModel(Model model) {
         model.addAttribute("patients", patientService.searchPatients("", PageRequest.of(0, 1000)).getContent());
-        model.addAttribute("clinicians", userRepository.findByEnabledTrue());
+        model.addAttribute("clinicians", userService.findAllActiveUsers());
     }
 }

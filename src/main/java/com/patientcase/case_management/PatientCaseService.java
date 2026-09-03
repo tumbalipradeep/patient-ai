@@ -6,6 +6,7 @@ import com.patientcase.common.ResourceNotFoundException;
 import com.patientcase.patient.Patient;
 import com.patientcase.patient.PatientRepository;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,13 +18,16 @@ public class PatientCaseService {
     private final PatientCaseRepository caseRepository;
     private final PatientRepository patientRepository;
     private final AuditService auditService;
+    private final JdbcTemplate jdbcTemplate;
 
     public PatientCaseService(PatientCaseRepository caseRepository,
                                PatientRepository patientRepository,
-                               AuditService auditService) {
+                               AuditService auditService,
+                               JdbcTemplate jdbcTemplate) {
         this.caseRepository = caseRepository;
         this.patientRepository = patientRepository;
         this.auditService = auditService;
+        this.jdbcTemplate = jdbcTemplate;
     }
 
     @Transactional(readOnly = true)
@@ -80,8 +84,8 @@ public class PatientCaseService {
     }
 
     private String generateCaseNumber() {
-        long count = caseRepository.count() + 1;
+        Long nextVal = jdbcTemplate.queryForObject("SELECT NEXTVAL('case_number_seq')", Long.class);
         int year = java.time.LocalDate.now().getYear();
-        return "C-" + year + "-" + String.format("%03d", count);
+        return "C-" + year + "-" + String.format("%03d", nextVal);
     }
 }

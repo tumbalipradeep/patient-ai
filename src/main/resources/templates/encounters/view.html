@@ -1,5 +1,6 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security" lang="en">
 <head th:replace="~{fragments/head :: head('Encounter Details')}"></head>
 <body class="app-body">
 <div class="app-layout">
@@ -19,15 +20,25 @@
                     </ol>
                 </nav>
             </div>
-            <div class="d-flex gap-2">
+            <div class="d-flex gap-2 align-items-center">
                 <span class="badge fs-6"
-                      th:classappend="${encounter.status.name() == 'COMPLETED'} ? 'bg-success' : (${encounter.status.name() == 'DRAFT'} ? 'bg-warning text-dark' : 'bg-secondary')"
+                      th:classappend="${encounter.status.name() == 'COMPLETED'} ? 'bg-success' : (${encounter.status.name() == 'DRAFT'} ? 'bg-warning text-dark' : (${encounter.status.name() == 'CANCELLED'} ? 'bg-danger' : 'bg-secondary'))"
                       th:text="${encounter.status}">Status</span>
                 <a th:if="${encounter.status.name() == 'DRAFT'}"
                    th:href="@{/encounters/{id}/case-taking(id=${encounter.id})}"
                    class="btn btn-warning btn-sm">
                     <i class="bi bi-pencil-square me-1"></i>Continue Case Taking
                 </a>
+                <!-- Cancel button: only ADMIN or DOCTOR can cancel a DRAFT encounter -->
+                <form th:if="${encounter.status.name() == 'DRAFT'}"
+                      th:action="@{/encounters/{id}/cancel(id=${encounter.id})}" method="post"
+                      sec:authorize="hasAnyRole('ADMIN','DOCTOR')">
+                    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                    <button type="submit" class="btn btn-outline-danger btn-sm"
+                            data-confirm="Are you sure you want to cancel this encounter? This cannot be undone.">
+                        <i class="bi bi-x-circle me-1"></i>Cancel Encounter
+                    </button>
+                </form>
             </div>
         </div>
 
@@ -204,21 +215,44 @@
 
                 <!-- Follow-ups -->
                 <div class="card border-0 shadow-sm mb-3" th:unless="${#lists.isEmpty(followUps)}">
-                    <div class="card-header bg-white py-2">
+                    <div class="card-header bg-white py-2 d-flex justify-content-between align-items-center">
                         <h6 class="mb-0 fw-semibold"><i class="bi bi-calendar-event me-1"></i>Follow-up</h6>
                     </div>
-                    <div class="card-body">
-                        <div th:each="f : ${followUps}">
-                            <dl class="row small mb-0">
+                    <div class="card-body p-0">
+                        <div th:each="f : ${followUps}" class="p-3 border-bottom last-of-type-no-border">
+                            <dl class="row small mb-2">
                                 <dt class="col-4 text-muted">Date</dt>
                                 <dd class="col-8" th:text="${f.followUpDate != null ? #temporals.format(f.followUpDate, 'dd MMM yyyy') : 'Not specified'}">Date</dd>
                                 <dt class="col-4 text-muted">Status</dt>
                                 <dd class="col-8">
-                                    <span class="badge bg-secondary" th:text="${f.status}">Status</span>
+                                    <span class="badge"
+                                          th:classappend="${f.status.name() == 'COMPLETED'} ? 'bg-success' : (${f.status.name() == 'OVERDUE'} ? 'bg-danger' : (${f.status.name() == 'CANCELLED'} ? 'bg-secondary' : 'bg-warning text-dark'))"
+                                          th:text="${f.status}">Status</span>
                                 </dd>
                                 <dt class="col-4 text-muted">Instructions</dt>
                                 <dd class="col-8" th:text="${f.instructions ?: '—'}">Instructions</dd>
                             </dl>
+                            <!-- Status update buttons (ADMIN/DOCTOR/NURSE) -->
+                            <div class="d-flex gap-2 flex-wrap" sec:authorize="hasAnyRole('ADMIN','DOCTOR','NURSE')"
+                                 th:if="${f.status.name() != 'COMPLETED' and f.status.name() != 'CANCELLED'}">
+                                <form th:action="@{/encounters/{eid}/followups/{fid}/status(eid=${encounter.id}, fid=${f.id})}"
+                                      method="post" class="d-inline">
+                                    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                                    <input type="hidden" name="status" value="COMPLETED"/>
+                                    <button type="submit" class="btn btn-success btn-sm">
+                                        <i class="bi bi-check-circle me-1"></i>Mark Completed
+                                    </button>
+                                </form>
+                                <form th:action="@{/encounters/{eid}/followups/{fid}/status(eid=${encounter.id}, fid=${f.id})}"
+                                      method="post" class="d-inline">
+                                    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                                    <input type="hidden" name="status" value="CANCELLED"/>
+                                    <button type="submit" class="btn btn-outline-secondary btn-sm"
+                                            data-confirm="Cancel this follow-up?">
+                                        <i class="bi bi-x me-1"></i>Cancel
+                                    </button>
+                                </form>
+                            </div>
                         </div>
                     </div>
                 </div>

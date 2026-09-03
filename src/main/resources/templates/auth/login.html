@@ -69,9 +69,9 @@
             </form>
 
             <hr class="my-4"/>
-            <div class="text-center">
+            <div th:if="${@environment.matchesProfiles('dev')}" class="text-center">
                 <p class="text-muted small mb-0">
-                    <strong>Demo Credentials:</strong><br/>
+                    <strong>Demo Credentials (dev only):</strong><br/>
                     Admin: <code>admin</code> / <code>Admin@123</code><br/>
                     Doctor: <code>dr.smith</code> / <code>Doctor@123</code>
                 </p>
