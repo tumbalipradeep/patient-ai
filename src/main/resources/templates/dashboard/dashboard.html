@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security" lang="en">
+<head th:replace="~{fragments/head :: head('Dashboard')}"></head>
+<body class="app-body">
+<div class="app-layout">
+    <!-- Sidebar -->
+    <div th:replace="~{fragments/sidebar :: sidebar}"></div>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Top bar -->
+        <div class="content-header d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h2 class="h4 mb-0 fw-bold">Dashboard</h2>
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb mb-0">
+                        <li class="breadcrumb-item active">Overview</li>
+                    </ol>
+                </nav>
+            </div>
+            <div class="d-flex gap-2">
+                <a th:href="@{/patients/new}" class="btn btn-primary btn-sm">
+                    <i class="bi bi-person-plus me-1"></i>New Patient
+                </a>
+                <a th:href="@{/appointments/new}" class="btn btn-outline-primary btn-sm"
+                   sec:authorize="hasAnyRole('ADMIN','DOCTOR','NURSE','RECEPTIONIST')">
+                    <i class="bi bi-calendar-plus me-1"></i>Schedule
+                </a>
+            </div>
+        </div>
+
+        <!-- Alerts -->
+        <div th:replace="~{fragments/alerts :: alerts}"></div>
+
+        <!-- Stats Cards -->
+        <div class="row g-4 mb-4">
+            <div class="col-sm-6 col-xl-3">
+                <div class="card stat-card border-0 shadow-sm h-100">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div>
+                                <p class="text-muted small mb-1 fw-semibold text-uppercase">Total Patients</p>
+                                <h3 class="fw-bold mb-0" th:text="${stats.totalPatients}">0</h3>
+                            </div>
+                            <div class="stat-icon bg-primary-soft rounded-circle">
+                                <i class="bi bi-people text-primary"></i>
+                            </div>
+                        </div>
+                        <a th:href="@{/patients}" class="btn btn-link btn-sm p-0 mt-2 text-primary">
+                            View all <i class="bi bi-arrow-right"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-xl-3">
+                <div class="card stat-card border-0 shadow-sm h-100">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div>
+                                <p class="text-muted small mb-1 fw-semibold text-uppercase">Active Cases</p>
+                                <h3 class="fw-bold mb-0" th:text="${stats.activeCases}">0</h3>
+                            </div>
+                            <div class="stat-icon bg-warning-soft rounded-circle">
+                                <i class="bi bi-folder2-open text-warning"></i>
+                            </div>
+                        </div>
+                        <p class="text-muted small mb-0 mt-2">Open &amp; In Progress</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-xl-3">
+                <div class="card stat-card border-0 shadow-sm h-100">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div>
+                                <p class="text-muted small mb-1 fw-semibold text-uppercase">Today's Appointments</p>
+                                <h3 class="fw-bold mb-0" th:text="${stats.todayAppointments}">0</h3>
+                            </div>
+                            <div class="stat-icon bg-success-soft rounded-circle">
+                                <i class="bi bi-calendar-check text-success"></i>
+                            </div>
+                        </div>
+                        <a th:href="@{/appointments}" class="btn btn-link btn-sm p-0 mt-2 text-success">
+                            View all <i class="bi bi-arrow-right"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-xl-3">
+                <div class="card stat-card border-0 shadow-sm h-100">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div>
+                                <p class="text-muted small mb-1 fw-semibold text-uppercase">Recent Encounters</p>
+                                <h3 class="fw-bold mb-0" th:text="${stats.recentEncounters.size()}">0</h3>
+                            </div>
+                            <div class="stat-icon bg-info-soft rounded-circle">
+                                <i class="bi bi-clipboard2-pulse text-info"></i>
+                            </div>
+                        </div>
+                        <p class="text-muted small mb-0 mt-2">Last 5 encounters</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-4">
+            <!-- Upcoming Appointments -->
+            <div class="col-lg-6">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center py-3">
+                        <h6 class="fw-bold mb-0"><i class="bi bi-calendar-week me-2 text-primary"></i>Upcoming Appointments</h6>
+                        <a th:href="@{/appointments}" class="btn btn-link btn-sm p-0">View all</a>
+                    </div>
+                    <div class="card-body p-0">
+                        <div th:if="${#lists.isEmpty(stats.upcomingAppointments)}"
+                             class="text-center py-5 text-muted">
+                            <i class="bi bi-calendar-x fs-2 d-block mb-2"></i>
+                            <p class="mb-0">No upcoming appointments</p>
+                        </div>
+                        <div class="list-group list-group-flush" th:unless="${#lists.isEmpty(stats.upcomingAppointments)}">
+                            <div th:each="appt : ${stats.upcomingAppointments}"
+                                 class="list-group-item list-group-item-action py-3">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div>
+                                        <p class="fw-semibold mb-0" th:text="${appt.patient.fullName}">Patient Name</p>
+                                        <small class="text-muted">
+                                            <i class="bi bi-person-badge me-1"></i>
+                                            <span th:text="${appt.clinician.fullName}">Clinician</span>
+                                        </small>
+                                    </div>
+                                    <div class="text-end">
+                                        <small class="text-muted d-block"
+                                               th:text="${#temporals.format(appt.appointmentDatetime, 'dd MMM HH:mm')}">Date</small>
+                                        <span class="badge rounded-pill"
+                                              th:classappend="${appt.status.name() == 'CONFIRMED'} ? 'bg-success' : 'bg-secondary'"
+                                              th:text="${appt.status}">Status</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Encounters -->
+            <div class="col-lg-6">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center py-3">
+                        <h6 class="fw-bold mb-0"><i class="bi bi-clipboard2-pulse me-2 text-info"></i>Recent Encounters</h6>
+                    </div>
+                    <div class="card-body p-0">
+                        <div th:if="${#lists.isEmpty(stats.recentEncounters)}"
+                             class="text-center py-5 text-muted">
+                            <i class="bi bi-clipboard-x fs-2 d-block mb-2"></i>
+                            <p class="mb-0">No recent encounters</p>
+                        </div>
+                        <div class="list-group list-group-flush" th:unless="${#lists.isEmpty(stats.recentEncounters)}">
+                            <a th:each="enc : ${stats.recentEncounters}"
+                               th:href="@{/encounters/{id}(id=${enc.id})}"
+                               class="list-group-item list-group-item-action py-3">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div>
+                                        <p class="fw-semibold mb-0"
+                                           th:text="${enc.patientCase.patient.fullName}">Patient</p>
+                                        <small class="text-muted"
+                                               th:text="${enc.patientCase.caseNumber}">Case</small>
+                                    </div>
+                                    <div class="text-end">
+                                        <small class="text-muted d-block"
+                                               th:text="${#temporals.format(enc.encounterDate, 'dd MMM HH:mm')}">Date</small>
+                                        <span class="badge rounded-pill"
+                                              th:classappend="${enc.status.name() == 'COMPLETED'} ? 'bg-success' : (${enc.status.name() == 'DRAFT'} ? 'bg-warning text-dark' : 'bg-secondary')"
+                                              th:text="${enc.status}">Status</span>
+                                    </div>
+                                </div>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<div th:replace="~{fragments/footer :: footer}"></div>
+</body>
+</html>

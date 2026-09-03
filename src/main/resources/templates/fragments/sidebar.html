@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<body>
+<nav th:fragment="sidebar" class="sidebar d-flex flex-column p-3" aria-label="Main Navigation">
+    <div class="sidebar-brand mb-4 d-flex align-items-center">
+        <i class="bi bi-heart-pulse-fill text-primary me-2 fs-4"></i>
+        <span class="fw-bold fs-5">PatientCase</span>
+    </div>
+
+    <ul class="nav nav-pills flex-column mb-auto">
+        <li class="nav-item mb-1">
+            <a th:href="@{/dashboard}" class="nav-link sidebar-link">
+                <i class="bi bi-speedometer2 me-2"></i>Dashboard
+            </a>
+        </li>
+        <li class="nav-item mb-1">
+            <a th:href="@{/patients}" class="nav-link sidebar-link">
+                <i class="bi bi-people me-2"></i>Patients
+            </a>
+        </li>
+        <li class="nav-item mb-1" sec:authorize="hasAnyRole('ADMIN','DOCTOR','NURSE')">
+            <a th:href="@{/appointments}" class="nav-link sidebar-link">
+                <i class="bi bi-calendar-check me-2"></i>Appointments
+            </a>
+        </li>
+        <li class="nav-item mb-1">
+            <a th:href="@{/documents}" class="nav-link sidebar-link">
+                <i class="bi bi-folder2 me-2"></i>Documents
+            </a>
+        </li>
+    </ul>
+
+    <div class="mt-auto pt-3 border-top">
+        <div class="d-flex align-items-center mb-2">
+            <div class="avatar-sm bg-primary rounded-circle d-flex align-items-center justify-content-center me-2">
+                <i class="bi bi-person-fill text-white"></i>
+            </div>
+            <div class="overflow-hidden">
+                <div class="fw-semibold text-truncate small" sec:authentication="name">User</div>
+                <div class="text-muted" style="font-size:0.7rem;" sec:authentication="principal.authorities">Role</div>
+            </div>
+        </div>
+        <form th:action="@{/logout}" method="post">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+            <button type="submit" class="btn btn-outline-secondary btn-sm w-100">
+                <i class="bi bi-box-arrow-right me-1"></i>Logout
+            </button>
+        </form>
+        <p class="text-muted mt-3 mb-0" style="font-size:0.65rem;">
+            Clinical information must be reviewed and verified by an appropriately qualified healthcare professional.
+        </p>
+    </div>
+</nav>
+</body>
+</html>

@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{fragments/head :: head('Case Details')}"></head>
+<body class="app-body">
+<div class="app-layout">
+    <div th:replace="~{fragments/sidebar :: sidebar}"></div>
+    <main class="main-content">
+        <div class="content-header d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h2 class="h4 mb-0 fw-bold" th:text="${patientCase.title}">Case Title</h2>
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb mb-0">
+                        <li class="breadcrumb-item"><a th:href="@{/dashboard}">Dashboard</a></li>
+                        <li class="breadcrumb-item"><a th:href="@{/patients}">Patients</a></li>
+                        <li class="breadcrumb-item">
+                            <a th:href="@{/patients/{id}(id=${patientCase.patient.id})}"
+                               th:text="${patientCase.patient.fullName}">Patient</a>
+                        </li>
+                        <li class="breadcrumb-item active" th:text="${patientCase.caseNumber}">Case</li>
+                    </ol>
+                </nav>
+            </div>
+            <div class="d-flex gap-2">
+                <a th:href="@{/cases/{id}/edit(id=${patientCase.id})}" class="btn btn-outline-secondary btn-sm">
+                    <i class="bi bi-pencil me-1"></i>Edit Case
+                </a>
+                <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#createEncounterModal">
+                    <i class="bi bi-plus-lg me-1"></i>New Encounter
+                </button>
+            </div>
+        </div>
+
+        <div th:replace="~{fragments/alerts :: alerts}"></div>
+
+        <div class="row g-4">
+            <!-- Case Info -->
+            <div class="col-lg-4">
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-header bg-white py-3">
+                        <h6 class="fw-bold mb-0"><i class="bi bi-folder2 me-2 text-primary"></i>Case Information</h6>
+                    </div>
+                    <div class="card-body">
+                        <dl class="row small mb-0">
+                            <dt class="col-5 text-muted">Case #</dt>
+                            <dd class="col-7">
+                                <span class="badge bg-light text-dark fw-semibold"
+                                      th:text="${patientCase.caseNumber}">Case#</span>
+                            </dd>
+                            <dt class="col-5 text-muted">Patient</dt>
+                            <dd class="col-7">
+                                <a th:href="@{/patients/{id}(id=${patientCase.patient.id})}"
+                                   th:text="${patientCase.patient.fullName}">Patient</a>
+                            </dd>
+                            <dt class="col-5 text-muted">Status</dt>
+                            <dd class="col-7">
+                                <span class="badge"
+                                      th:classappend="${patientCase.status.name() == 'OPEN'} ? 'bg-primary' : (${patientCase.status.name() == 'IN_PROGRESS'} ? 'bg-warning text-dark' : (${patientCase.status.name() == 'CLOSED'} ? 'bg-success' : 'bg-secondary'))"
+                                      th:text="${patientCase.status}">Status</span>
+                            </dd>
+                            <dt class="col-5 text-muted">Priority</dt>
+                            <dd class="col-7">
+                                <span class="badge"
+                                      th:classappend="${patientCase.priority.name() == 'URGENT'} ? 'bg-danger' : (${patientCase.priority.name() == 'HIGH'} ? 'bg-warning text-dark' : (${patientCase.priority.name() == 'MEDIUM'} ? 'bg-info' : 'bg-light text-dark'))"
+                                      th:text="${patientCase.priority}">Priority</span>
+                            </dd>
+                            <dt class="col-5 text-muted">Created</dt>
+                            <dd class="col-7" th:text="${#temporals.format(patientCase.createdAt, 'dd MMM yyyy')}">Date</dd>
+                        </dl>
+                    </div>
+                </div>
+
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-white py-3">
+                        <h6 class="fw-bold mb-0"><i class="bi bi-chat-quote me-2 text-info"></i>Chief Complaint</h6>
+                    </div>
+                    <div class="card-body">
+                        <p class="small mb-0" th:text="${patientCase.chiefComplaint}">Complaint</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Encounters Timeline -->
+            <div class="col-lg-8">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-white py-3 d-flex justify-content-between">
+                        <h6 class="fw-bold mb-0"><i class="bi bi-clipboard2-pulse me-2 text-info"></i>Encounters</h6>
+                        <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#createEncounterModal">
+                            <i class="bi bi-plus-lg me-1"></i>New Encounter
+                        </button>
+                    </div>
+                    <div class="card-body p-0">
+                        <div th:if="${#lists.isEmpty(encounters)}" class="text-center py-5 text-muted">
+                            <i class="bi bi-clipboard-x fs-2 d-block mb-2"></i>
+                            <p class="mb-3">No encounters recorded</p>
+                            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createEncounterModal">
+                                Start Case-Taking
+                            </button>
+                        </div>
+                        <div class="list-group list-group-flush" th:unless="${#lists.isEmpty(encounters)}">
+                            <div th:each="enc : ${encounters}" class="list-group-item py-3">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div class="flex-grow-1">
+                                        <div class="d-flex align-items-center mb-1">
+                                            <span class="badge"
+                                                  th:classappend="${enc.status.name() == 'COMPLETED'} ? 'bg-success' : (${enc.status.name() == 'DRAFT'} ? 'bg-warning text-dark' : 'bg-secondary')"
+                                                  th:text="${enc.status}" class="me-2">Status</span>
+                                            <small class="text-muted"
+                                                   th:text="${#temporals.format(enc.encounterDate, 'dd MMM yyyy HH:mm')}">Date</small>
+                                        </div>
+                                        <p class="mb-1 small" th:if="${enc.chiefComplaint != null}">
+                                            <strong>Chief Complaint:</strong>
+                                            <span th:text="${enc.chiefComplaint}">Complaint</span>
+                                        </p>
+                                        <small class="text-muted">
+                                            <i class="bi bi-person-badge me-1"></i>
+                                            <span th:text="${enc.clinician.fullName}">Clinician</span>
+                                        </small>
+                                    </div>
+                                    <div class="ms-3 d-flex gap-1">
+                                        <a th:if="${enc.status.name() == 'DRAFT'}"
+                                           th:href="@{/encounters/{id}/case-taking(id=${enc.id})}"
+                                           class="btn btn-sm btn-warning">
+                                            <i class="bi bi-pencil-square me-1"></i>Continue
+                                        </a>
+                                        <a th:href="@{/encounters/{id}(id=${enc.id})}"
+                                           class="btn btn-sm btn-outline-primary">
+                                            <i class="bi bi-eye me-1"></i>View
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- Create Encounter Modal -->
+<div class="modal fade" id="createEncounterModal" tabindex="-1" aria-labelledby="createEncounterModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="createEncounterModalLabel">
+                    <i class="bi bi-clipboard-plus me-2"></i>New Encounter
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form th:action="@{/cases/{caseId}/encounters/new(caseId=${patientCase.id})}" method="post"
+                  th:object="${encounterForm}" novalidate>
+                <div class="modal-body">
+                    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                    <input type="hidden" th:field="*{caseId}"/>
+                    <div class="mb-3">
+                        <label for="clinicianId" class="form-label required">Attending Clinician</label>
+                        <select id="clinicianId" th:field="*{clinicianId}" class="form-select" required>
+                            <option value="">Select clinician...</option>
+                            <option th:each="c : ${clinicians}"
+                                    th:value="${c.id}"
+                                    th:text="${c.fullName + ' (' + c.role + ')'}">Clinician</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-clipboard-plus me-1"></i>Start Encounter
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div th:replace="~{fragments/footer :: footer}"></div>
+</body>
+</html>

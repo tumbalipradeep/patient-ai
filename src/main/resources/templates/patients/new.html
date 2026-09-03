@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{fragments/head :: head('Register Patient')}"></head>
+<body class="app-body">
+<div class="app-layout">
+    <div th:replace="~{fragments/sidebar :: sidebar}"></div>
+    <main class="main-content">
+        <div class="content-header mb-4">
+            <h2 class="h4 mb-0 fw-bold">Register New Patient</h2>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0">
+                    <li class="breadcrumb-item"><a th:href="@{/dashboard}">Dashboard</a></li>
+                    <li class="breadcrumb-item"><a th:href="@{/patients}">Patients</a></li>
+                    <li class="breadcrumb-item active">New</li>
+                </ol>
+            </nav>
+        </div>
+
+        <div th:replace="~{fragments/alerts :: alerts}"></div>
+
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white border-bottom py-3">
+                <h5 class="mb-0 fw-semibold"><i class="bi bi-person-plus me-2 text-primary"></i>Patient Information</h5>
+            </div>
+            <div class="card-body p-4">
+                <form th:action="@{/patients/new}" method="post" th:object="${patientForm}" novalidate>
+                    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+
+                    <h6 class="fw-semibold text-muted text-uppercase small mb-3 border-bottom pb-2">
+                        <i class="bi bi-person me-1"></i>Personal Details
+                    </h6>
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-4">
+                            <label for="firstName" class="form-label required">First Name</label>
+                            <input type="text" id="firstName" th:field="*{firstName}"
+                                   class="form-control" th:classappend="${#fields.hasErrors('firstName')} ? 'is-invalid'"
+                                   placeholder="First name" required/>
+                            <div class="invalid-feedback" th:errors="*{firstName}"></div>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="lastName" class="form-label required">Last Name</label>
+                            <input type="text" id="lastName" th:field="*{lastName}"
+                                   class="form-control" th:classappend="${#fields.hasErrors('lastName')} ? 'is-invalid'"
+                                   placeholder="Last name" required/>
+                            <div class="invalid-feedback" th:errors="*{lastName}"></div>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="dateOfBirth" class="form-label required">Date of Birth</label>
+                            <input type="date" id="dateOfBirth" th:field="*{dateOfBirth}"
+                                   class="form-control" th:classappend="${#fields.hasErrors('dateOfBirth')} ? 'is-invalid'"
+                                   required/>
+                            <div class="invalid-feedback" th:errors="*{dateOfBirth}"></div>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="gender" class="form-label required">Gender</label>
+                            <select id="gender" th:field="*{gender}"
+                                    class="form-select" th:classappend="${#fields.hasErrors('gender')} ? 'is-invalid'"
+                                    required>
+                                <option value="">Select gender...</option>
+                                <option th:each="g : ${genders}" th:value="${g}" th:text="${g}"></option>
+                            </select>
+                            <div class="invalid-feedback" th:errors="*{gender}"></div>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="bloodGroup" class="form-label">Blood Group</label>
+                            <select id="bloodGroup" th:field="*{bloodGroup}" class="form-select">
+                                <option value="">Unknown</option>
+                                <option th:each="bg : ${bloodGroups}" th:value="${bg}" th:text="${bg}"></option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <h6 class="fw-semibold text-muted text-uppercase small mb-3 border-bottom pb-2">
+                        <i class="bi bi-telephone me-1"></i>Contact Information
+                    </h6>
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-4">
+                            <label for="phone" class="form-label">Phone</label>
+                            <input type="tel" id="phone" th:field="*{phone}"
+                                   class="form-control" th:classappend="${#fields.hasErrors('phone')} ? 'is-invalid'"
+                                   placeholder="Phone number"/>
+                            <div class="invalid-feedback" th:errors="*{phone}"></div>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="email" class="form-label">Email</label>
+                            <input type="email" id="email" th:field="*{email}"
+                                   class="form-control" th:classappend="${#fields.hasErrors('email')} ? 'is-invalid'"
+                                   placeholder="Email address"/>
+                            <div class="invalid-feedback" th:errors="*{email}"></div>
+                        </div>
+                        <div class="col-12">
+                            <label for="address" class="form-label">Address</label>
+                            <textarea id="address" th:field="*{address}"
+                                      class="form-control" rows="2" placeholder="Full address"></textarea>
+                        </div>
+                    </div>
+
+                    <h6 class="fw-semibold text-muted text-uppercase small mb-3 border-bottom pb-2">
+                        <i class="bi bi-person-lines-fill me-1"></i>Emergency Contact
+                    </h6>
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-6">
+                            <label for="emergencyContactName" class="form-label">Emergency Contact Name</label>
+                            <input type="text" id="emergencyContactName" th:field="*{emergencyContactName}"
+                                   class="form-control" placeholder="Contact name"/>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="emergencyContactPhone" class="form-label">Emergency Contact Phone</label>
+                            <input type="tel" id="emergencyContactPhone" th:field="*{emergencyContactPhone}"
+                                   class="form-control" placeholder="Contact phone"/>
+                        </div>
+                    </div>
+
+                    <h6 class="fw-semibold text-muted text-uppercase small mb-3 border-bottom pb-2">
+                        <i class="bi bi-clipboard2-pulse me-1"></i>Medical Information
+                    </h6>
+                    <div class="row g-3 mb-4">
+                        <div class="col-12">
+                            <label for="allergies" class="form-label">Known Allergies</label>
+                            <textarea id="allergies" th:field="*{allergies}"
+                                      class="form-control" rows="2"
+                                      placeholder="List any known allergies (medications, foods, environmental)..."></textarea>
+                        </div>
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-lg me-1"></i>Register Patient
+                        </button>
+                        <a th:href="@{/patients}" class="btn btn-outline-secondary">
+                            <i class="bi bi-x me-1"></i>Cancel
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </main>
+</div>
+<div th:replace="~{fragments/footer :: footer}"></div>
+</body>
+</html>

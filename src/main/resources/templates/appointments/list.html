@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{fragments/head :: head('Appointments')}"></head>
+<body class="app-body">
+<div class="app-layout">
+    <div th:replace="~{fragments/sidebar :: sidebar}"></div>
+    <main class="main-content">
+        <div class="content-header d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h2 class="h4 mb-0 fw-bold">Appointments</h2>
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb mb-0">
+                        <li class="breadcrumb-item"><a th:href="@{/dashboard}">Dashboard</a></li>
+                        <li class="breadcrumb-item active">Appointments</li>
+                    </ol>
+                </nav>
+            </div>
+            <a th:href="@{/appointments/new}" class="btn btn-primary">
+                <i class="bi bi-calendar-plus me-1"></i>Schedule Appointment
+            </a>
+        </div>
+
+        <div th:replace="~{fragments/alerts :: alerts}"></div>
+
+        <div class="card border-0 shadow-sm">
+            <div class="card-body p-0">
+                <div th:if="${appointments.isEmpty()}" class="text-center py-5 text-muted">
+                    <i class="bi bi-calendar-x fs-1 d-block mb-3"></i>
+                    <h5>No appointments found</h5>
+                    <a th:href="@{/appointments/new}" class="btn btn-primary">Schedule First Appointment</a>
+                </div>
+                <div class="table-responsive" th:unless="${appointments.isEmpty()}">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Date &amp; Time</th>
+                                <th>Patient</th>
+                                <th>Clinician</th>
+                                <th>Reason</th>
+                                <th>Status</th>
+                                <th class="text-end">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr th:each="appt : ${appointments.content}">
+                                <td>
+                                    <div class="fw-semibold" th:text="${#temporals.format(appt.appointmentDatetime, 'dd MMM yyyy')}">Date</div>
+                                    <small class="text-muted" th:text="${#temporals.format(appt.appointmentDatetime, 'HH:mm')}">Time</small>
+                                </td>
+                                <td>
+                                    <a th:href="@{/patients/{id}(id=${appt.patient.id})}"
+                                       th:text="${appt.patient.fullName}" class="text-decoration-none">Patient</a>
+                                    <div><small class="text-muted" th:text="${appt.patient.patientNumber}">Number</small></div>
+                                </td>
+                                <td th:text="${appt.clinician.fullName}">Clinician</td>
+                                <td th:text="${appt.reason ?: '—'}">Reason</td>
+                                <td>
+                                    <span class="badge rounded-pill"
+                                          th:classappend="${appt.status.name() == 'CONFIRMED'} ? 'bg-success' : (${appt.status.name() == 'SCHEDULED'} ? 'bg-primary' : (${appt.status.name() == 'COMPLETED'} ? 'bg-secondary' : (${appt.status.name() == 'CANCELLED'} ? 'bg-danger' : 'bg-warning text-dark')))"
+                                          th:text="${appt.status}">Status</span>
+                                </td>
+                                <td class="text-end">
+                                    <div class="d-flex gap-1 justify-content-end">
+                                        <a th:href="@{/appointments/{id}/edit(id=${appt.id})}"
+                                           class="btn btn-sm btn-outline-secondary" title="Edit">
+                                            <i class="bi bi-pencil"></i>
+                                        </a>
+                                        <!-- Quick status update -->
+                                        <div class="dropdown">
+                                            <button class="btn btn-sm btn-outline-primary dropdown-toggle"
+                                                    type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                                Status
+                                            </button>
+                                            <ul class="dropdown-menu">
+                                                <li th:each="s : ${statuses}">
+                                                    <form th:action="@{/appointments/{id}/status(id=${appt.id})}" method="post" class="d-inline">
+                                                        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                                                        <input type="hidden" name="status" th:value="${s}"/>
+                                                        <button type="submit" class="dropdown-item small" th:text="${s}">Status</button>
+                                                    </form>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="card-footer bg-white d-flex justify-content-between align-items-center py-3"
+                 th:unless="${appointments.isEmpty()}">
+                <small class="text-muted">
+                    Showing <span th:text="${appointments.numberOfElements}">0</span>
+                    of <span th:text="${appointments.totalElements}">0</span>
+                </small>
+                <div th:replace="~{fragments/pagination :: pagination(${currentPage}, ${totalPages}, '/appointments')}"></div>
+            </div>
+        </div>
+    </main>
+</div>
+<div th:replace="~{fragments/footer :: footer}"></div>
+</body>
+</html>

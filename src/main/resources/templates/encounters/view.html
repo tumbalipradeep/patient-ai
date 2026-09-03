@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{fragments/head :: head('Encounter Details')}"></head>
+<body class="app-body">
+<div class="app-layout">
+    <div th:replace="~{fragments/sidebar :: sidebar}"></div>
+    <main class="main-content">
+        <div class="content-header d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h2 class="h4 mb-0 fw-bold">Encounter Details</h2>
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb mb-0">
+                        <li class="breadcrumb-item"><a th:href="@{/dashboard}">Dashboard</a></li>
+                        <li class="breadcrumb-item">
+                            <a th:href="@{/cases/{id}(id=${encounter.patientCase.id})}"
+                               th:text="${encounter.patientCase.caseNumber}">Case</a>
+                        </li>
+                        <li class="breadcrumb-item active">Encounter</li>
+                    </ol>
+                </nav>
+            </div>
+            <div class="d-flex gap-2">
+                <span class="badge fs-6"
+                      th:classappend="${encounter.status.name() == 'COMPLETED'} ? 'bg-success' : (${encounter.status.name() == 'DRAFT'} ? 'bg-warning text-dark' : 'bg-secondary')"
+                      th:text="${encounter.status}">Status</span>
+                <a th:if="${encounter.status.name() == 'DRAFT'}"
+                   th:href="@{/encounters/{id}/case-taking(id=${encounter.id})}"
+                   class="btn btn-warning btn-sm">
+                    <i class="bi bi-pencil-square me-1"></i>Continue Case Taking
+                </a>
+            </div>
+        </div>
+
+        <div th:replace="~{fragments/alerts :: alerts}"></div>
+
+        <div class="row g-4">
+            <div class="col-lg-4">
+                <div class="card border-0 shadow-sm mb-3">
+                    <div class="card-header bg-white py-2">
+                        <h6 class="mb-0 fw-semibold">Encounter Info</h6>
+                    </div>
+                    <div class="card-body">
+                        <dl class="row small mb-0">
+                            <dt class="col-5 text-muted">Patient</dt>
+                            <dd class="col-7">
+                                <a th:href="@{/patients/{id}(id=${encounter.patientCase.patient.id})}"
+                                   th:text="${encounter.patientCase.patient.fullName}">Patient</a>
+                            </dd>
+                            <dt class="col-5 text-muted">Case</dt>
+                            <dd class="col-7">
+                                <a th:href="@{/cases/{id}(id=${encounter.patientCase.id})}"
+                                   th:text="${encounter.patientCase.caseNumber}">Case</a>
+                            </dd>
+                            <dt class="col-5 text-muted">Clinician</dt>
+                            <dd class="col-7" th:text="${encounter.clinician.fullName}">Clinician</dd>
+                            <dt class="col-5 text-muted">Date</dt>
+                            <dd class="col-7" th:text="${#temporals.format(encounter.encounterDate, 'dd MMM yyyy HH:mm')}">Date</dd>
+                        </dl>
+                    </div>
+                </div>
+
+                <div class="card border-0 shadow-sm mb-3" th:if="${vitals != null}">
+                    <div class="card-header bg-white py-2">
+                        <h6 class="mb-0 fw-semibold"><i class="bi bi-activity me-1 text-danger"></i>Vitals</h6>
+                    </div>
+                    <div class="card-body">
+                        <dl class="row small mb-0">
+                            <dt class="col-6 text-muted">Temperature</dt>
+                            <dd class="col-6" th:text="${vitals.temperature != null ? vitals.temperature + ' °C' : '—'}">—</dd>
+                            <dt class="col-6 text-muted">Heart Rate</dt>
+                            <dd class="col-6" th:text="${vitals.heartRate != null ? vitals.heartRate + ' bpm' : '—'}">—</dd>
+                            <dt class="col-6 text-muted">BP</dt>
+                            <dd class="col-6" th:text="${(vitals.systolicBp != null and vitals.diastolicBp != null) ? vitals.systolicBp + '/' + vitals.diastolicBp + ' mmHg' : '—'}">—</dd>
+                            <dt class="col-6 text-muted">SpO2</dt>
+                            <dd class="col-6" th:text="${vitals.oxygenSaturation != null ? vitals.oxygenSaturation + '%' : '—'}">—</dd>
+                            <dt class="col-6 text-muted">BMI</dt>
+                            <dd class="col-6" th:text="${vitals.bmi != null ? vitals.bmi : '—'}">—</dd>
+                        </dl>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-8">
+                <!-- Chief Complaint -->
+                <div class="card border-0 shadow-sm mb-3" th:if="${encounter.chiefComplaint != null}">
+                    <div class="card-header bg-white py-2">
+                        <h6 class="mb-0 fw-semibold">Chief Complaint</h6>
+                    </div>
+                    <div class="card-body">
+                        <p class="mb-0" th:text="${encounter.chiefComplaint}">Complaint</p>
+                    </div>
+                </div>
+
+                <!-- Symptoms -->
+                <div class="card border-0 shadow-sm mb-3" th:unless="${#lists.isEmpty(symptoms)}">
+                    <div class="card-header bg-white py-2">
+                        <h6 class="mb-0 fw-semibold"><i class="bi bi-list-check me-1"></i>Symptoms</h6>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm mb-0">
+                            <thead class="table-light">
+                                <tr><th>Symptom</th><th>Duration</th><th>Severity</th><th>Onset</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr th:each="s : ${symptoms}">
+                                    <td th:text="${s.name}">Name</td>
+                                    <td th:text="${s.duration ?: '—'}">Duration</td>
+                                    <td>
+                                        <span class="badge"
+                                              th:classappend="${s.severity.name() == 'SEVERE'} ? 'bg-danger' : (${s.severity.name() == 'MODERATE'} ? 'bg-warning text-dark' : 'bg-success')"
+                                              th:text="${s.severity}">Severity</span>
+                                    </td>
+                                    <td th:text="${s.onset}">Onset</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Examinations -->
+                <div class="card border-0 shadow-sm mb-3" th:unless="${#lists.isEmpty(examinations)}">
+                    <div class="card-header bg-white py-2">
+                        <h6 class="mb-0 fw-semibold"><i class="bi bi-stethoscope me-1"></i>Clinical Examinations</h6>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm mb-0">
+                            <thead class="table-light">
+                                <tr><th>Area</th><th>Findings</th><th>Notes</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr th:each="e : ${examinations}">
+                                    <td th:text="${e.examinationArea}">Area</td>
+                                    <td th:text="${e.findings}">Findings</td>
+                                    <td th:text="${e.notes ?: '—'}">Notes</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Assessment -->
+                <div class="card border-0 shadow-sm mb-3"
+                     th:if="${encounter.assessmentNotes != null or encounter.clinicalImpression != null}">
+                    <div class="card-header bg-white py-2">
+                        <h6 class="mb-0 fw-semibold"><i class="bi bi-clipboard2-check me-1"></i>Assessment</h6>
+                    </div>
+                    <div class="card-body">
+                        <div th:if="${encounter.assessmentNotes != null}">
+                            <p class="fw-semibold small mb-1">Assessment Notes:</p>
+                            <p class="mb-2" th:text="${encounter.assessmentNotes}">Notes</p>
+                        </div>
+                        <div th:if="${encounter.clinicalImpression != null}">
+                            <p class="fw-semibold small mb-1">Clinical Impression:</p>
+                            <p class="mb-0" th:text="${encounter.clinicalImpression}">Impression</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Diagnoses -->
+                <div class="card border-0 shadow-sm mb-3" th:unless="${#lists.isEmpty(diagnoses)}">
+                    <div class="card-header bg-white py-2">
+                        <h6 class="mb-0 fw-semibold"><i class="bi bi-journal-medical me-1"></i>Diagnoses</h6>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm mb-0">
+                            <thead class="table-light">
+                                <tr><th>Diagnosis</th><th>Status</th><th>Notes</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr th:each="d : ${diagnoses}">
+                                    <td th:text="${d.diagnosis}">Diagnosis</td>
+                                    <td>
+                                        <span class="badge"
+                                              th:classappend="${d.status.name() == 'CONFIRMED'} ? 'bg-success' : (${d.status.name() == 'SUSPECTED'} ? 'bg-warning text-dark' : 'bg-secondary')"
+                                              th:text="${d.status}">Status</span>
+                                    </td>
+                                    <td th:text="${d.notes ?: '—'}">Notes</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Treatments -->
+                <div class="card border-0 shadow-sm mb-3" th:unless="${#lists.isEmpty(treatments)}">
+                    <div class="card-header bg-white py-2">
+                        <h6 class="mb-0 fw-semibold"><i class="bi bi-capsule me-1"></i>Treatments</h6>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm mb-0">
+                            <thead class="table-light">
+                                <tr><th>Treatment</th><th>Instructions</th><th>Notes</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr th:each="t : ${treatments}">
+                                    <td th:text="${t.treatment}">Treatment</td>
+                                    <td th:text="${t.instructions ?: '—'}">Instructions</td>
+                                    <td th:text="${t.notes ?: '—'}">Notes</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Follow-ups -->
+                <div class="card border-0 shadow-sm mb-3" th:unless="${#lists.isEmpty(followUps)}">
+                    <div class="card-header bg-white py-2">
+                        <h6 class="mb-0 fw-semibold"><i class="bi bi-calendar-event me-1"></i>Follow-up</h6>
+                    </div>
+                    <div class="card-body">
+                        <div th:each="f : ${followUps}">
+                            <dl class="row small mb-0">
+                                <dt class="col-4 text-muted">Date</dt>
+                                <dd class="col-8" th:text="${f.followUpDate != null ? #temporals.format(f.followUpDate, 'dd MMM yyyy') : 'Not specified'}">Date</dd>
+                                <dt class="col-4 text-muted">Status</dt>
+                                <dd class="col-8">
+                                    <span class="badge bg-secondary" th:text="${f.status}">Status</span>
+                                </dd>
+                                <dt class="col-4 text-muted">Instructions</dt>
+                                <dd class="col-8" th:text="${f.instructions ?: '—'}">Instructions</dd>
+                            </dl>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+<div th:replace="~{fragments/footer :: footer}"></div>
+</body>
+</html>

@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{fragments/head :: head('Case Taking')}"></head>
+<body class="app-body">
+<div class="app-layout">
+    <div th:replace="~{fragments/sidebar :: sidebar}"></div>
+    <main class="main-content">
+        <div class="content-header d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h2 class="h4 mb-0 fw-bold">Case Taking</h2>
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb mb-0">
+                        <li class="breadcrumb-item"><a th:href="@{/dashboard}">Dashboard</a></li>
+                        <li class="breadcrumb-item">
+                            <a th:href="@{/cases/{id}(id=${encounter.patientCase.id})}"
+                               th:text="${encounter.patientCase.caseNumber}">Case</a>
+                        </li>
+                        <li class="breadcrumb-item active">Case Taking</li>
+                    </ol>
+                </nav>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <span class="badge"
+                      th:classappend="${encounter.status.name() == 'DRAFT'} ? 'bg-warning text-dark' : 'bg-success'"
+                      th:text="${encounter.status}">Status</span>
+                <small class="text-muted">
+                    Patient: <strong th:text="${encounter.patientCase.patient.fullName}">Name</strong>
+                </small>
+            </div>
+        </div>
+
+        <div th:replace="~{fragments/alerts :: alerts}"></div>
+
+        <div class="alert alert-info small py-2 mb-3">
+            <i class="bi bi-info-circle me-1"></i>
+            All clinical information entered here is clinician-recorded. It must be reviewed and verified by an appropriately qualified healthcare professional.
+        </div>
+
+        <form th:action="@{/encounters/{id}/case-taking(id=${encounter.id})}" method="post"
+              th:object="${form}" novalidate id="caseTakingForm">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+            <input type="hidden" th:field="*{encounterId}"/>
+
+            <!-- Tab Navigation -->
+            <ul class="nav nav-tabs mb-4" id="caseTakingTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="complaint-tab" data-bs-toggle="tab" data-bs-target="#complaint"
+                            type="button" role="tab" aria-controls="complaint" aria-selected="true">
+                        <i class="bi bi-chat-quote me-1"></i>Complaint &amp; History
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="symptoms-tab" data-bs-toggle="tab" data-bs-target="#symptoms"
+                            type="button" role="tab">
+                        <i class="bi bi-list-check me-1"></i>Symptoms
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="vitals-tab" data-bs-toggle="tab" data-bs-target="#vitals"
+                            type="button" role="tab">
+                        <i class="bi bi-activity me-1"></i>Vitals
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="examination-tab" data-bs-toggle="tab" data-bs-target="#examination"
+                            type="button" role="tab">
+                        <i class="bi bi-stethoscope me-1"></i>Examination
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="assessment-tab" data-bs-toggle="tab" data-bs-target="#assessment"
+                            type="button" role="tab">
+                        <i class="bi bi-clipboard2-check me-1"></i>Assessment
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="diagnosis-tab" data-bs-toggle="tab" data-bs-target="#diagnosis"
+                            type="button" role="tab">
+                        <i class="bi bi-journal-medical me-1"></i>Diagnosis &amp; Treatment
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="followup-tab" data-bs-toggle="tab" data-bs-target="#followup"
+                            type="button" role="tab">
+                        <i class="bi bi-calendar-event me-1"></i>Follow-up
+                    </button>
+                </li>
+            </ul>
+
+            <div class="tab-content" id="caseTakingTabContent">
+
+                <!-- Tab 1: Complaint & History -->
+                <div class="tab-pane fade show active" id="complaint" role="tabpanel">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-body p-4">
+                            <div class="mb-3">
+                                <label for="chiefComplaint" class="form-label fw-semibold">Chief Complaint</label>
+                                <textarea id="chiefComplaint" th:field="*{chiefComplaint}"
+                                          class="form-control" rows="3"
+                                          placeholder="Patient's primary presenting complaint..."></textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label for="historyOfPresentIllness" class="form-label fw-semibold">History of Present Illness</label>
+                                <textarea id="historyOfPresentIllness" th:field="*{historyOfPresentIllness}"
+                                          class="form-control" rows="5"
+                                          placeholder="Detailed history of the current illness including onset, duration, progression..."></textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label for="relevantHistory" class="form-label fw-semibold">Relevant History</label>
+                                <textarea id="relevantHistory" th:field="*{relevantHistory}"
+                                          class="form-control" rows="4"
+                                          placeholder="Past medical history, surgical history, medications, family history, social history..."></textarea>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab 2: Symptoms -->
+                <div class="tab-pane fade" id="symptoms" role="tabpanel">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-header bg-white py-3 d-flex justify-content-between">
+                            <h6 class="mb-0 fw-semibold">Symptoms</h6>
+                            <button type="button" class="btn btn-outline-primary btn-sm" id="addSymptomBtn">
+                                <i class="bi bi-plus-lg me-1"></i>Add Symptom
+                            </button>
+                        </div>
+                        <div class="card-body" id="symptomsContainer">
+                            <div th:if="${#lists.isEmpty(form.symptoms)}"
+                                 class="text-center text-muted py-3 no-symptoms-msg">
+                                <i class="bi bi-list-check fs-2 d-block mb-2"></i>
+                                <p class="mb-0">No symptoms recorded. Click "Add Symptom" to begin.</p>
+                            </div>
+                            <div th:each="symptom, iterStat : *{symptoms}"
+                                 class="symptom-row card bg-light mb-3 p-3">
+                                <div class="row g-2 align-items-end">
+                                    <div class="col-md-3">
+                                        <label th:for="'symptoms' + ${iterStat.index} + '.name'" class="form-label small">Symptom</label>
+                                        <input type="text"
+                                               th:name="'symptoms[' + ${iterStat.index} + '].name'"
+                                               th:value="${symptom.name}"
+                                               class="form-control form-control-sm" placeholder="Symptom name"/>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label class="form-label small">Duration</label>
+                                        <input type="text"
+                                               th:name="'symptoms[' + ${iterStat.index} + '].duration'"
+                                               th:value="${symptom.duration}"
+                                               class="form-control form-control-sm" placeholder="e.g. 2 weeks"/>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label class="form-label small">Severity</label>
+                                        <select th:name="'symptoms[' + ${iterStat.index} + '].severity'"
+                                                class="form-select form-select-sm">
+                                            <option th:each="s : ${severities}"
+                                                    th:value="${s}" th:text="${s}"
+                                                    th:selected="${symptom.severity == s}"></option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label class="form-label small">Onset</label>
+                                        <select th:name="'symptoms[' + ${iterStat.index} + '].onset'"
+                                                class="form-select form-select-sm">
+                                            <option th:each="o : ${onsets}"
+                                                    th:value="${o}" th:text="${o}"
+                                                    th:selected="${symptom.onset == o}"></option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label class="form-label small">Notes</label>
+                                        <input type="text"
+                                               th:name="'symptoms[' + ${iterStat.index} + '].notes'"
+                                               th:value="${symptom.notes}"
+                                               class="form-control form-control-sm" placeholder="Notes"/>
+                                    </div>
+                                    <div class="col-md-1">
+                                        <button type="button" class="btn btn-outline-danger btn-sm remove-row"
+                                                aria-label="Remove symptom">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab 3: Vitals -->
+                <div class="tab-pane fade" id="vitals" role="tabpanel">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-body p-4">
+                            <div class="alert alert-light small border mb-3">
+                                <i class="bi bi-info-circle me-1 text-info"></i>
+                                Enter vitals as recorded. Normal reference ranges are displayed for information only.
+                            </div>
+                            <div class="row g-3">
+                                <div class="col-md-3">
+                                    <label for="temperature" class="form-label">Temperature (°C)</label>
+                                    <input type="number" id="temperature" th:field="*{temperature}"
+                                           class="form-control" th:classappend="${#fields.hasErrors('temperature')} ? 'is-invalid'"
+                                           step="0.1" min="30" max="45" placeholder="37.0"/>
+                                    <div class="form-text text-muted">Normal: 36.1–37.2°C</div>
+                                    <div class="invalid-feedback" th:errors="*{temperature}"></div>
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="heartRate" class="form-label">Heart Rate (bpm)</label>
+                                    <input type="number" id="heartRate" th:field="*{heartRate}"
+                                           class="form-control" th:classappend="${#fields.hasErrors('heartRate')} ? 'is-invalid'"
+                                           min="20" max="300" placeholder="72"/>
+                                    <div class="form-text text-muted">Normal: 60–100 bpm</div>
+                                    <div class="invalid-feedback" th:errors="*{heartRate}"></div>
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="systolicBp" class="form-label">Systolic BP (mmHg)</label>
+                                    <input type="number" id="systolicBp" th:field="*{systolicBp}"
+                                           class="form-control" th:classappend="${#fields.hasErrors('systolicBp')} ? 'is-invalid'"
+                                           min="50" max="300" placeholder="120"/>
+                                    <div class="form-text text-muted">Normal: &lt;120 mmHg</div>
+                                    <div class="invalid-feedback" th:errors="*{systolicBp}"></div>
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="diastolicBp" class="form-label">Diastolic BP (mmHg)</label>
+                                    <input type="number" id="diastolicBp" th:field="*{diastolicBp}"
+                                           class="form-control" th:classappend="${#fields.hasErrors('diastolicBp')} ? 'is-invalid'"
+                                           min="20" max="200" placeholder="80"/>
+                                    <div class="form-text text-muted">Normal: &lt;80 mmHg</div>
+                                    <div class="invalid-feedback" th:errors="*{diastolicBp}"></div>
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="respiratoryRate" class="form-label">Respiratory Rate (rpm)</label>
+                                    <input type="number" id="respiratoryRate" th:field="*{respiratoryRate}"
+                                           class="form-control" th:classappend="${#fields.hasErrors('respiratoryRate')} ? 'is-invalid'"
+                                           min="4" max="60" placeholder="16"/>
+                                    <div class="form-text text-muted">Normal: 12–20 rpm</div>
+                                    <div class="invalid-feedback" th:errors="*{respiratoryRate}"></div>
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="oxygenSaturation" class="form-label">Oxygen Saturation (%)</label>
+                                    <input type="number" id="oxygenSaturation" th:field="*{oxygenSaturation}"
+                                           class="form-control" th:classappend="${#fields.hasErrors('oxygenSaturation')} ? 'is-invalid'"
+                                           step="0.1" min="50" max="100" placeholder="98"/>
+                                    <div class="form-text text-muted">Normal: ≥95%</div>
+                                    <div class="invalid-feedback" th:errors="*{oxygenSaturation}"></div>
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="height" class="form-label">Height (cm)</label>
+                                    <input type="number" id="height" th:field="*{height}"
+                                           class="form-control" step="0.1" min="30" max="300" placeholder="170"/>
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="weight" class="form-label">Weight (kg)</label>
+                                    <input type="number" id="weight" th:field="*{weight}"
+                                           class="form-control" step="0.1" min="1" max="500" placeholder="70"/>
+                                </div>
+                                <div class="col-12">
+                                    <label for="vitalsNotes" class="form-label">Notes</label>
+                                    <textarea id="vitalsNotes" th:field="*{vitalsNotes}"
+                                              class="form-control" rows="2" placeholder="Additional notes..."></textarea>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab 4: Clinical Examination -->
+                <div class="tab-pane fade" id="examination" role="tabpanel">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-header bg-white py-3 d-flex justify-content-between">
+                            <h6 class="mb-0 fw-semibold">Clinical Examinations</h6>
+                            <button type="button" class="btn btn-outline-primary btn-sm" id="addExaminationBtn">
+                                <i class="bi bi-plus-lg me-1"></i>Add Examination
+                            </button>
+                        </div>
+                        <div class="card-body" id="examinationsContainer">
+                            <div th:if="${#lists.isEmpty(form.examinations)}"
+                                 class="text-center text-muted py-3 no-examinations-msg">
+                                <i class="bi bi-stethoscope fs-2 d-block mb-2"></i>
+                                <p class="mb-0">No examinations recorded.</p>
+                            </div>
+                            <div th:each="exam, iterStat : *{examinations}"
+                                 class="examination-row card bg-light mb-3 p-3">
+                                <div class="row g-2 align-items-end">
+                                    <div class="col-md-3">
+                                        <label class="form-label small">Examination Area</label>
+                                        <input type="text"
+                                               th:name="'examinations[' + ${iterStat.index} + '].examinationArea'"
+                                               th:value="${exam.examinationArea}"
+                                               class="form-control form-control-sm" placeholder="e.g. Cardiovascular"/>
+                                    </div>
+                                    <div class="col-md-5">
+                                        <label class="form-label small">Findings</label>
+                                        <input type="text"
+                                               th:name="'examinations[' + ${iterStat.index} + '].findings'"
+                                               th:value="${exam.findings}"
+                                               class="form-control form-control-sm" placeholder="Clinical findings"/>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label small">Notes</label>
+                                        <input type="text"
+                                               th:name="'examinations[' + ${iterStat.index} + '].notes'"
+                                               th:value="${exam.notes}"
+                                               class="form-control form-control-sm" placeholder="Notes"/>
+                                    </div>
+                                    <div class="col-md-1">
+                                        <button type="button" class="btn btn-outline-danger btn-sm remove-row"
+                                                aria-label="Remove examination">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab 5: Assessment -->
+                <div class="tab-pane fade" id="assessment" role="tabpanel">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-body p-4">
+                            <div class="alert alert-light border small mb-3">
+                                <i class="bi bi-pencil me-1"></i>
+                                Assessment and clinical impression are clinician-entered and do not represent AI-generated diagnoses.
+                            </div>
+                            <div class="mb-3">
+                                <label for="assessmentNotes" class="form-label fw-semibold">Assessment Notes</label>
+                                <textarea id="assessmentNotes" th:field="*{assessmentNotes}"
+                                          class="form-control" rows="4"
+                                          placeholder="Clinician's assessment of the clinical picture..."></textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label for="clinicalImpression" class="form-label fw-semibold">Clinical Impression</label>
+                                <textarea id="clinicalImpression" th:field="*{clinicalImpression}"
+                                          class="form-control" rows="4"
+                                          placeholder="Overall clinical impression and working hypothesis..."></textarea>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab 6: Diagnosis & Treatment -->
+                <div class="tab-pane fade" id="diagnosis" role="tabpanel">
+                    <div class="card border-0 shadow-sm mb-4">
+                        <div class="card-header bg-white py-3 d-flex justify-content-between">
+                            <h6 class="mb-0 fw-semibold"><i class="bi bi-journal-medical me-1"></i>Diagnoses</h6>
+                            <button type="button" class="btn btn-outline-primary btn-sm" id="addDiagnosisBtn">
+                                <i class="bi bi-plus-lg me-1"></i>Add Diagnosis
+                            </button>
+                        </div>
+                        <div class="card-body" id="diagnosesContainer">
+                            <div th:if="${#lists.isEmpty(form.diagnoses)}"
+                                 class="text-center text-muted py-3 no-diagnoses-msg">
+                                <i class="bi bi-journal-x fs-2 d-block mb-2"></i>
+                                <p class="mb-0">No diagnoses recorded.</p>
+                            </div>
+                            <div th:each="diag, iterStat : *{diagnoses}"
+                                 class="diagnosis-row card bg-light mb-3 p-3">
+                                <div class="row g-2 align-items-end">
+                                    <div class="col-md-4">
+                                        <label class="form-label small">Diagnosis</label>
+                                        <input type="text"
+                                               th:name="'diagnoses[' + ${iterStat.index} + '].diagnosis'"
+                                               th:value="${diag.diagnosis}"
+                                               class="form-control form-control-sm" placeholder="Diagnosis"/>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label class="form-label small">Status</label>
+                                        <select th:name="'diagnoses[' + ${iterStat.index} + '].status'"
+                                                class="form-select form-select-sm">
+                                            <option th:each="ds : ${diagnosisStatuses}"
+                                                    th:value="${ds}" th:text="${ds}"
+                                                    th:selected="${diag.status == ds}"></option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-5">
+                                        <label class="form-label small">Notes</label>
+                                        <input type="text"
+                                               th:name="'diagnoses[' + ${iterStat.index} + '].notes'"
+                                               th:value="${diag.notes}"
+                                               class="form-control form-control-sm" placeholder="Notes"/>
+                                    </div>
+                                    <div class="col-md-1">
+                                        <button type="button" class="btn btn-outline-danger btn-sm remove-row"
+                                                aria-label="Remove diagnosis">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-header bg-white py-3 d-flex justify-content-between">
+                            <h6 class="mb-0 fw-semibold"><i class="bi bi-capsule me-1"></i>Treatments</h6>
+                            <button type="button" class="btn btn-outline-success btn-sm" id="addTreatmentBtn">
+                                <i class="bi bi-plus-lg me-1"></i>Add Treatment
+                            </button>
+                        </div>
+                        <div class="card-body" id="treatmentsContainer">
+                            <div th:if="${#lists.isEmpty(form.treatments)}"
+                                 class="text-center text-muted py-3 no-treatments-msg">
+                                <i class="bi bi-capsule fs-2 d-block mb-2"></i>
+                                <p class="mb-0">No treatments recorded.</p>
+                            </div>
+                            <div th:each="treat, iterStat : *{treatments}"
+                                 class="treatment-row card bg-light mb-3 p-3">
+                                <div class="row g-2 align-items-end">
+                                    <div class="col-md-3">
+                                        <label class="form-label small">Treatment</label>
+                                        <input type="text"
+                                               th:name="'treatments[' + ${iterStat.index} + '].treatment'"
+                                               th:value="${treat.treatment}"
+                                               class="form-control form-control-sm" placeholder="Treatment"/>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label small">Instructions</label>
+                                        <input type="text"
+                                               th:name="'treatments[' + ${iterStat.index} + '].instructions'"
+                                               th:value="${treat.instructions}"
+                                               class="form-control form-control-sm" placeholder="Instructions"/>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label small">Notes</label>
+                                        <input type="text"
+                                               th:name="'treatments[' + ${iterStat.index} + '].notes'"
+                                               th:value="${treat.notes}"
+                                               class="form-control form-control-sm" placeholder="Notes"/>
+                                    </div>
+                                    <div class="col-md-1">
+                                        <button type="button" class="btn btn-outline-danger btn-sm remove-row"
+                                                aria-label="Remove treatment">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab 7: Follow-up -->
+                <div class="tab-pane fade" id="followup" role="tabpanel">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-body p-4">
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <label for="followUpDate" class="form-label fw-semibold">Follow-up Date</label>
+                                    <input type="date" id="followUpDate" th:field="*{followUpDate}"
+                                           class="form-control"/>
+                                </div>
+                                <div class="col-12">
+                                    <label for="followUpInstructions" class="form-label fw-semibold">Instructions</label>
+                                    <textarea id="followUpInstructions" th:field="*{followUpInstructions}"
+                                              class="form-control" rows="3"
+                                              placeholder="Patient instructions for follow-up visit..."></textarea>
+                                </div>
+                                <div class="col-12">
+                                    <label for="followUpNotes" class="form-label fw-semibold">Notes</label>
+                                    <textarea id="followUpNotes" th:field="*{followUpNotes}"
+                                              class="form-control" rows="2"
+                                              placeholder="Additional notes..."></textarea>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="card border-0 shadow-sm mt-4">
+                <div class="card-body d-flex justify-content-between align-items-center">
+                    <a th:href="@{/cases/{id}(id=${encounter.patientCase.id})}" class="btn btn-outline-secondary">
+                        <i class="bi bi-arrow-left me-1"></i>Back to Case
+                    </a>
+                    <div class="d-flex gap-2">
+                        <button type="submit" name="finalize" value="false" class="btn btn-warning" id="saveDraftBtn">
+                            <i class="bi bi-save me-1"></i>Save Draft
+                        </button>
+                        <button type="submit" name="finalize" value="true" class="btn btn-success"
+                                th:disabled="${encounter.status.name() == 'COMPLETED'}"
+                                onclick="return confirm('Finalise this encounter? This will mark it as COMPLETED.')">
+                            <i class="bi bi-check2-all me-1"></i>Finalise Encounter
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </main>
+</div>
+<div th:replace="~{fragments/footer :: footer}"></div>
+<script th:src="@{/js/case-taking.js}"></script>
+</body>
+</html>

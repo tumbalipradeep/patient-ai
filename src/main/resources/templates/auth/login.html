@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{fragments/head :: head('Login')}"></head>
+<body class="login-body">
+
+<div class="login-wrapper d-flex align-items-center justify-content-center min-vh-100">
+    <div class="login-card card shadow-lg border-0">
+        <div class="card-body p-5">
+            <!-- Logo/Brand -->
+            <div class="text-center mb-4">
+                <div class="login-icon mb-3">
+                    <i class="bi bi-heart-pulse-fill text-primary" style="font-size: 2.5rem;"></i>
+                </div>
+                <h1 class="h3 fw-bold text-dark mb-1">PatientCase</h1>
+                <p class="text-muted small">AI Patient Case-Taking System</p>
+            </div>
+
+            <!-- Alerts -->
+            <div th:if="${errorMessage}" class="alert alert-danger py-2" role="alert">
+                <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                <span th:text="${errorMessage}">Invalid credentials</span>
+            </div>
+            <div th:if="${logoutMessage}" class="alert alert-success py-2" role="alert">
+                <i class="bi bi-check-circle-fill me-2"></i>
+                <span th:text="${logoutMessage}">Logged out</span>
+            </div>
+
+            <!-- Login Form -->
+            <form th:action="@{/login}" method="post" novalidate>
+                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+
+                <div class="mb-3">
+                    <label for="username" class="form-label fw-semibold">Username</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-light border-end-0">
+                            <i class="bi bi-person text-muted"></i>
+                        </span>
+                        <input type="text" id="username" name="username"
+                               class="form-control border-start-0 ps-0"
+                               placeholder="Enter your username"
+                               autocomplete="username"
+                               required
+                               autofocus/>
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <label for="password" class="form-label fw-semibold">Password</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-light border-end-0">
+                            <i class="bi bi-lock text-muted"></i>
+                        </span>
+                        <input type="password" id="password" name="password"
+                               class="form-control border-start-0 ps-0"
+                               placeholder="Enter your password"
+                               autocomplete="current-password"
+                               required/>
+                        <button class="btn btn-outline-secondary border-start-0"
+                                type="button" id="togglePassword"
+                                aria-label="Show or hide password">
+                            <i class="bi bi-eye" id="eyeIcon"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold">
+                    <i class="bi bi-box-arrow-in-right me-2"></i>Sign In
+                </button>
+            </form>
+
+            <hr class="my-4"/>
+            <div class="text-center">
+                <p class="text-muted small mb-0">
+                    <strong>Demo Credentials:</strong><br/>
+                    Admin: <code>admin</code> / <code>Admin@123</code><br/>
+                    Doctor: <code>dr.smith</code> / <code>Doctor@123</code>
+                </p>
+            </div>
+        </div>
+
+        <div class="card-footer bg-light text-center py-3">
+            <p class="text-muted mb-0" style="font-size: 0.7rem;">
+                <i class="bi bi-shield-check me-1 text-success"></i>
+                Clinical information must be reviewed by a qualified healthcare professional.
+            </p>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.getElementById('togglePassword').addEventListener('click', function() {
+        const pwd = document.getElementById('password');
+        const icon = document.getElementById('eyeIcon');
+        if (pwd.type === 'password') {
+            pwd.type = 'text';
+            icon.classList.replace('bi-eye', 'bi-eye-slash');
+        } else {
+            pwd.type = 'password';
+            icon.classList.replace('bi-eye-slash', 'bi-eye');
+        }
+    });
+</script>
+</body>
+</html>

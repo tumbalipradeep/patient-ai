@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{fragments/head :: head('Patient Profile')}"></head>
+<body class="app-body">
+<div class="app-layout">
+    <div th:replace="~{fragments/sidebar :: sidebar}"></div>
+    <main class="main-content">
+        <div class="content-header d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h2 class="h4 mb-0 fw-bold" th:text="${patient.fullName}">Patient Name</h2>
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb mb-0">
+                        <li class="breadcrumb-item"><a th:href="@{/dashboard}">Dashboard</a></li>
+                        <li class="breadcrumb-item"><a th:href="@{/patients}">Patients</a></li>
+                        <li class="breadcrumb-item active" th:text="${patient.fullName}">Name</li>
+                    </ol>
+                </nav>
+            </div>
+            <div class="d-flex gap-2">
+                <a th:href="@{/patients/{id}/edit(id=${patient.id})}" class="btn btn-outline-secondary btn-sm">
+                    <i class="bi bi-pencil me-1"></i>Edit Patient
+                </a>
+                <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#createCaseModal">
+                    <i class="bi bi-plus-lg me-1"></i>Create Case
+                </button>
+            </div>
+        </div>
+
+        <div th:replace="~{fragments/alerts :: alerts}"></div>
+
+        <div class="row g-4">
+            <!-- Patient Info Card -->
+            <div class="col-lg-4">
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-header bg-white py-3">
+                        <h6 class="fw-bold mb-0"><i class="bi bi-person me-2 text-primary"></i>Patient Details</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="text-center mb-3">
+                            <div class="avatar-lg bg-primary-soft rounded-circle d-inline-flex align-items-center justify-content-center mb-2">
+                                <i class="bi bi-person-fill text-primary" style="font-size: 2rem;"></i>
+                            </div>
+                            <h5 class="fw-bold mb-0" th:text="${patient.fullName}">Name</h5>
+                            <span class="badge bg-light text-dark" th:text="${patient.patientNumber}">Number</span>
+                        </div>
+                        <dl class="row small mb-0">
+                            <dt class="col-5 text-muted">Date of Birth</dt>
+                            <dd class="col-7" th:text="${#temporals.format(patient.dateOfBirth, 'dd MMM yyyy')}">DOB</dd>
+                            <dt class="col-5 text-muted">Gender</dt>
+                            <dd class="col-7" th:text="${patient.gender}">Gender</dd>
+                            <dt class="col-5 text-muted">Blood Group</dt>
+                            <dd class="col-7" th:text="${patient.bloodGroup ?: 'Unknown'}">Blood Group</dd>
+                        </dl>
+                    </div>
+                </div>
+
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-header bg-white py-3">
+                        <h6 class="fw-bold mb-0"><i class="bi bi-telephone me-2 text-success"></i>Contact</h6>
+                    </div>
+                    <div class="card-body">
+                        <dl class="row small mb-0">
+                            <dt class="col-4 text-muted">Phone</dt>
+                            <dd class="col-8" th:text="${patient.phone ?: '—'}">Phone</dd>
+                            <dt class="col-4 text-muted">Email</dt>
+                            <dd class="col-8 text-truncate" th:text="${patient.email ?: '—'}">Email</dd>
+                            <dt class="col-4 text-muted">Address</dt>
+                            <dd class="col-8" th:text="${patient.address ?: '—'}">Address</dd>
+                        </dl>
+                    </div>
+                </div>
+
+                <div class="card border-0 shadow-sm mb-4" th:if="${patient.emergencyContactName != null}">
+                    <div class="card-header bg-white py-3">
+                        <h6 class="fw-bold mb-0"><i class="bi bi-person-lines-fill me-2 text-danger"></i>Emergency Contact</h6>
+                    </div>
+                    <div class="card-body">
+                        <dl class="row small mb-0">
+                            <dt class="col-4 text-muted">Name</dt>
+                            <dd class="col-8" th:text="${patient.emergencyContactName}">Name</dd>
+                            <dt class="col-4 text-muted">Phone</dt>
+                            <dd class="col-8" th:text="${patient.emergencyContactPhone ?: '—'}">Phone</dd>
+                        </dl>
+                    </div>
+                </div>
+
+                <div class="card border-0 shadow-sm" th:if="${patient.allergies != null and !patient.allergies.isEmpty()}">
+                    <div class="card-header bg-white py-3">
+                        <h6 class="fw-bold mb-0"><i class="bi bi-exclamation-triangle me-2 text-warning"></i>Allergies</h6>
+                    </div>
+                    <div class="card-body">
+                        <p class="mb-0 small" th:text="${patient.allergies}">Allergies</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Cases -->
+            <div class="col-lg-8">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-white py-3 d-flex justify-content-between">
+                        <h6 class="fw-bold mb-0"><i class="bi bi-folder2 me-2 text-warning"></i>Cases</h6>
+                        <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#createCaseModal">
+                            <i class="bi bi-plus-lg me-1"></i>New Case
+                        </button>
+                    </div>
+                    <div class="card-body p-0">
+                        <div th:if="${#lists.isEmpty(cases)}" class="text-center py-5 text-muted">
+                            <i class="bi bi-folder-x fs-2 d-block mb-2"></i>
+                            <p class="mb-3">No cases yet</p>
+                            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createCaseModal">
+                                Create First Case
+                            </button>
+                        </div>
+                        <div class="table-responsive" th:unless="${#lists.isEmpty(cases)}">
+                            <table class="table table-hover align-middle mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Case #</th>
+                                        <th>Title</th>
+                                        <th>Status</th>
+                                        <th>Priority</th>
+                                        <th>Created</th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr th:each="c : ${cases}">
+                                        <td>
+                                            <span class="badge bg-light text-dark fw-semibold"
+                                                  th:text="${c.caseNumber}">Case#</span>
+                                        </td>
+                                        <td th:text="${c.title}">Title</td>
+                                        <td>
+                                            <span class="badge"
+                                                  th:classappend="${c.status.name() == 'OPEN'} ? 'bg-primary' : (${c.status.name() == 'IN_PROGRESS'} ? 'bg-warning text-dark' : (${c.status.name() == 'CLOSED'} ? 'bg-success' : 'bg-secondary'))"
+                                                  th:text="${c.status}">Status</span>
+                                        </td>
+                                        <td>
+                                            <span class="badge"
+                                                  th:classappend="${c.priority.name() == 'URGENT'} ? 'bg-danger' : (${c.priority.name() == 'HIGH'} ? 'bg-warning text-dark' : (${c.priority.name() == 'MEDIUM'} ? 'bg-info' : 'bg-light text-dark'))"
+                                                  th:text="${c.priority}">Priority</span>
+                                        </td>
+                                        <td th:text="${#temporals.format(c.createdAt, 'dd MMM yyyy')}">Date</td>
+                                        <td>
+                                            <a th:href="@{/cases/{id}(id=${c.id})}" class="btn btn-sm btn-outline-primary">
+                                                <i class="bi bi-eye"></i> View
+                                            </a>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- Create Case Modal -->
+<div class="modal fade" id="createCaseModal" tabindex="-1" aria-labelledby="createCaseModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="createCaseModalLabel">
+                    <i class="bi bi-folder-plus me-2"></i>Create New Case
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form th:action="@{/cases/new}" method="post" th:object="${caseForm}" novalidate>
+                <div class="modal-body">
+                    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                    <input type="hidden" th:field="*{patientId}"/>
+
+                    <div class="mb-3">
+                        <label for="caseTitle" class="form-label required">Case Title</label>
+                        <input type="text" id="caseTitle" th:field="*{title}"
+                               class="form-control" th:classappend="${#fields.hasErrors('title')} ? 'is-invalid'"
+                               placeholder="Brief description of the case" required/>
+                        <div class="invalid-feedback" th:errors="*{title}"></div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="chiefComplaint" class="form-label required">Chief Complaint</label>
+                        <textarea id="chiefComplaint" th:field="*{chiefComplaint}"
+                                  class="form-control" th:classappend="${#fields.hasErrors('chiefComplaint')} ? 'is-invalid'"
+                                  rows="3" placeholder="Patient's primary complaint..." required></textarea>
+                        <div class="invalid-feedback" th:errors="*{chiefComplaint}"></div>
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label for="caseStatus" class="form-label">Status</label>
+                            <select id="caseStatus" th:field="*{status}" class="form-select">
+                                <option th:each="s : ${caseStatuses}" th:value="${s}" th:text="${s}"></option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="casePriority" class="form-label">Priority</label>
+                            <select id="casePriority" th:field="*{priority}" class="form-select">
+                                <option th:each="p : ${casePriorities}" th:value="${p}" th:text="${p}"></option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-folder-plus me-1"></i>Create Case
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div th:replace="~{fragments/footer :: footer}"></div>
+</body>
+</html>
