@@ -93,6 +93,13 @@ public class EncounterService {
     public Encounter saveCaseTaking(Long encounterId, CaseTakingForm form, String currentUsername) {
         Encounter encounter = findById(encounterId);
 
+        if (encounter.getStatus() == EncounterStatus.CANCELLED) {
+            throw new IllegalStateException("A cancelled encounter cannot be modified.");
+        }
+        if (encounter.getStatus() == EncounterStatus.COMPLETED) {
+            throw new IllegalStateException("A completed encounter cannot be modified.");
+        }
+
         // Update encounter fields
         encounter.setChiefComplaint(form.getChiefComplaint());
         encounter.setHistoryOfPresentIllness(form.getHistoryOfPresentIllness());
@@ -247,6 +254,9 @@ public class EncounterService {
                 .orElseThrow(() -> new ResourceNotFoundException("Follow-up not found: " + followUpId));
         if (followUp.getStatus() == FollowUpStatus.COMPLETED && newStatus != FollowUpStatus.COMPLETED) {
             throw new IllegalStateException("A completed follow-up cannot be changed.");
+        }
+        if (followUp.getStatus() == FollowUpStatus.CANCELLED) {
+            throw new IllegalStateException("A cancelled follow-up cannot be changed.");
         }
         followUp.setStatus(newStatus);
         return followUpRepository.save(followUp);

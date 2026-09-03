@@ -476,8 +476,8 @@
                             <i class="bi bi-save me-1"></i>Save Draft
                         </button>
                         <button type="submit" name="finalize" value="true" class="btn btn-success"
-                                th:disabled="${encounter.status.name() == 'COMPLETED'}"
-                                onclick="return confirm('Finalise this encounter? This will mark it as COMPLETED.')">
+                                th:disabled="${encounter.status.name() == 'COMPLETED' or encounter.status.name() == 'CANCELLED'}"
+                                data-confirm="Finalise this encounter? It will be marked COMPLETED and cannot be modified.">
                             <i class="bi bi-check2-all me-1"></i>Finalise Encounter
                         </button>
                     </div>

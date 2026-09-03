@@ -91,6 +91,11 @@ public class Patient {
 
     public String getFullName() { return firstName + " " + lastName; }
 
+    public int getAge() {
+        if (dateOfBirth == null) return 0;
+        return java.time.Period.between(dateOfBirth, LocalDate.now()).getYears();
+    }
+
     public LocalDate getDateOfBirth() { return dateOfBirth; }
     public void setDateOfBirth(LocalDate dateOfBirth) { this.dateOfBirth = dateOfBirth; }
 

@@ -4,10 +4,15 @@ import com.patientcase.user.User;
 import com.patientcase.user.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 @Service
 public class AuditService {
@@ -47,6 +52,16 @@ public class AuditService {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void log(AuditAction action) {
         log(action, null, null, null);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<AuditLog> findFiltered(String username, AuditAction action,
+                                        LocalDate from, LocalDate to,
+                                        Pageable pageable) {
+        LocalDateTime fromDt = (from != null) ? from.atStartOfDay() : null;
+        LocalDateTime toDt   = (to   != null) ? to.atTime(23, 59, 59) : null;
+        String usernameFilter = (username != null && username.isBlank()) ? null : username;
+        return auditLogRepository.findFiltered(usernameFilter, action, fromDt, toDt, pageable);
     }
 
     private String getCurrentUsername() {

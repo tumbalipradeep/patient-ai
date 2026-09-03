@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{fragments/head :: head('Audit Log')}"></head>
+<body class="app-body">
+<div class="app-layout">
+    <div th:replace="~{fragments/sidebar :: sidebar}"></div>
+    <main class="main-content">
+        <div class="content-header mb-4">
+            <h2 class="h4 mb-0 fw-bold"><i class="bi bi-shield-check me-2 text-primary"></i>Audit Log</h2>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0">
+                    <li class="breadcrumb-item"><a th:href="@{/dashboard}">Dashboard</a></li>
+                    <li class="breadcrumb-item active">Audit Log</li>
+                </ol>
+            </nav>
+        </div>
+
+        <div th:replace="~{fragments/alerts :: alerts}"></div>
+
+        <!-- Filter Form -->
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-white py-3">
+                <h6 class="fw-semibold mb-0"><i class="bi bi-funnel me-1"></i>Filter</h6>
+            </div>
+            <div class="card-body">
+                <form th:action="@{/admin/audit}" method="get" class="row g-3 align-items-end">
+                    <div class="col-md-3">
+                        <label for="username" class="form-label small">Username</label>
+                        <input type="text" id="username" name="username" class="form-control form-control-sm"
+                               th:value="${username}" placeholder="Search by username"/>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="action" class="form-label small">Action</label>
+                        <select id="action" name="action" class="form-select form-select-sm">
+                            <option value="">All actions</option>
+                            <option th:each="a : ${actions}" th:value="${a}" th:text="${a}"
+                                    th:selected="${a == selectedAction}"></option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label for="from" class="form-label small">From</label>
+                        <input type="date" id="from" name="from" class="form-control form-control-sm"
+                               th:value="${from}"/>
+                    </div>
+                    <div class="col-md-2">
+                        <label for="to" class="form-label small">To</label>
+                        <input type="date" id="to" name="to" class="form-control form-control-sm"
+                               th:value="${to}"/>
+                    </div>
+                    <div class="col-md-2 d-flex gap-2">
+                        <button type="submit" class="btn btn-primary btn-sm">
+                            <i class="bi bi-search me-1"></i>Filter
+                        </button>
+                        <a th:href="@{/admin/audit}" class="btn btn-outline-secondary btn-sm">Clear</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Results -->
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                <h6 class="fw-semibold mb-0">
+                    Results
+                    <span class="badge bg-secondary ms-1" th:text="${auditPage.totalElements}">0</span>
+                </h6>
+                <small class="text-muted"
+                       th:text="'Page ' + (${currentPage} + 1) + ' of ' + ${auditPage.totalPages}">Page</small>
+            </div>
+            <div class="card-body p-0">
+                <div th:if="${auditPage.isEmpty()}" class="text-center py-5 text-muted">
+                    <i class="bi bi-journal-x fs-1 d-block mb-3"></i>
+                    <p>No audit records match the current filter.</p>
+                </div>
+                <div class="table-responsive" th:unless="${auditPage.isEmpty()}">
+                    <table class="table table-sm table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Timestamp</th>
+                                <th>Username</th>
+                                <th>Action</th>
+                                <th>Entity</th>
+                                <th>Details</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr th:each="entry : ${auditPage.content}">
+                                <td class="text-nowrap small text-muted"
+                                    th:text="${#temporals.format(entry.createdAt, 'dd MMM yyyy HH:mm:ss')}">Timestamp</td>
+                                <td>
+                                    <span class="fw-semibold small" th:text="${entry.username ?: '—'}">User</span>
+                                </td>
+                                <td>
+                                    <span class="badge"
+                                          th:classappend="${entry.action.name().contains('CREATED')} ? 'bg-success' :
+                                                          (${entry.action.name() == 'LOGIN'} ? 'bg-primary' :
+                                                          (${entry.action.name() == 'LOGOUT'} ? 'bg-secondary' :
+                                                          (${entry.action.name().contains('UPDATED')} ? 'bg-warning text-dark' : 'bg-info text-dark')))"
+                                          th:text="${entry.action}">Action</span>
+                                </td>
+                                <td class="small">
+                                    <span th:if="${entry.entityType != null}"
+                                          th:text="${entry.entityType + (entry.entityId != null ? ' #' + entry.entityId : '')}">Entity</span>
+                                    <span th:unless="${entry.entityType != null}" class="text-muted">—</span>
+                                </td>
+                                <td class="small text-muted" th:text="${entry.metadata ?: '—'}">Details</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <!-- Pagination -->
+            <div class="card-footer bg-white" th:if="${auditPage.totalPages > 1}">
+                <nav aria-label="Audit log pagination">
+                    <ul class="pagination pagination-sm mb-0 justify-content-center">
+                        <li class="page-item" th:classappend="${currentPage == 0} ? 'disabled'">
+                            <a class="page-link"
+                               th:href="@{/admin/audit(page=${currentPage - 1},username=${username},action=${selectedAction},from=${from},to=${to})}">
+                                &laquo;
+                            </a>
+                        </li>
+                        <li th:each="i : ${#numbers.sequence(0, auditPage.totalPages - 1)}"
+                            class="page-item" th:classappend="${i == currentPage} ? 'active'">
+                            <a class="page-link"
+                               th:href="@{/admin/audit(page=${i},username=${username},action=${selectedAction},from=${from},to=${to})}"
+                               th:text="${i + 1}">1</a>
+                        </li>
+                        <li class="page-item" th:classappend="${currentPage >= auditPage.totalPages - 1} ? 'disabled'">
+                            <a class="page-link"
+                               th:href="@{/admin/audit(page=${currentPage + 1},username=${username},action=${selectedAction},from=${from},to=${to})}">
+                                &raquo;
+                            </a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </main>
+</div>
+<div th:replace="~{fragments/footer :: footer}"></div>
+</body>
+</html>

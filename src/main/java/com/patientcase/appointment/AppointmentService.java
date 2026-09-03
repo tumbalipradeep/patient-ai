@@ -54,6 +54,8 @@ public class AppointmentService {
         User clinician = userRepository.findById(request.getClinicianId())
                 .orElseThrow(() -> new ResourceNotFoundException("Clinician not found: " + request.getClinicianId()));
 
+        validateClinician(clinician);
+
         Appointment appointment = new Appointment();
         appointment.setPatient(patient);
         appointment.setClinician(clinician);
@@ -86,6 +88,8 @@ public class AppointmentService {
         User clinician = userRepository.findById(request.getClinicianId())
                 .orElseThrow(() -> new ResourceNotFoundException("Clinician not found: " + request.getClinicianId()));
 
+        validateClinician(clinician);
+
         appointment.setPatient(patient);
         appointment.setClinician(clinician);
         appointment.setAppointmentDatetime(request.getAppointmentDatetime());
@@ -95,6 +99,19 @@ public class AppointmentService {
         Appointment saved = appointmentRepository.save(appointment);
         auditService.log(AuditAction.APPOINTMENT_UPDATED, "Appointment", saved.getId(), "Appointment updated");
         return saved;
+    }
+
+    /**
+     * Enforces that only DOCTOR or NURSE users may be assigned as appointment clinicians.
+     * This is a backend guard — the UI dropdown should also filter, but we never rely on it alone.
+     */
+    private void validateClinician(User clinician) {
+        if (clinician.getRole() != com.patientcase.user.Role.DOCTOR
+                && clinician.getRole() != com.patientcase.user.Role.NURSE) {
+            throw new IllegalArgumentException(
+                    "Only users with role DOCTOR or NURSE may be assigned as clinicians. " +
+                    "Selected user '" + clinician.getUsername() + "' has role " + clinician.getRole() + ".");
+        }
     }
 
     @Transactional(readOnly = true)

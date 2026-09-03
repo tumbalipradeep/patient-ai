@@ -45,7 +45,10 @@
                         </div>
                         <dl class="row small mb-0">
                             <dt class="col-5 text-muted">Date of Birth</dt>
-                            <dd class="col-7" th:text="${#temporals.format(patient.dateOfBirth, 'dd MMM yyyy')}">DOB</dd>
+                            <dd class="col-7">
+                                <span th:text="${#temporals.format(patient.dateOfBirth, 'dd MMM yyyy')}">DOB</span>
+                                <span class="text-muted ms-1" th:text="'(' + ${patient.age} + ' yrs)'"></span>
+                            </dd>
                             <dt class="col-5 text-muted">Gender</dt>
                             <dd class="col-7" th:text="${patient.gender}">Gender</dd>
                             <dt class="col-5 text-muted">Blood Group</dt>

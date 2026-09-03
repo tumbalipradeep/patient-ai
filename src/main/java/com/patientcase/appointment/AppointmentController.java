@@ -110,6 +110,6 @@ public class AppointmentController {
 
     private void populateFormModel(Model model) {
         model.addAttribute("patients", patientService.searchPatients("", PageRequest.of(0, 1000)).getContent());
-        model.addAttribute("clinicians", userService.findAllActiveUsers());
+        model.addAttribute("clinicians", userService.findAllClinicians());
     }
 }

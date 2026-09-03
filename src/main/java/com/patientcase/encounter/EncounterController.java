@@ -5,6 +5,7 @@ import com.patientcase.case_management.PatientCaseService;
 import com.patientcase.clinical.*;
 import com.patientcase.user.UserService;
 import jakarta.validation.Valid;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -127,6 +128,7 @@ public class EncounterController {
         }
     }
 
+    @PreAuthorize("hasAnyRole('ADMIN','DOCTOR')")
     @PostMapping("/encounters/{id}/cancel")
     public String cancelEncounter(@PathVariable Long id,
                                    Authentication authentication,
@@ -142,6 +144,7 @@ public class EncounterController {
         return "redirect:/cases/" + caseId;
     }
 
+    @PreAuthorize("hasAnyRole('ADMIN','DOCTOR','NURSE')")
     @PostMapping("/encounters/{encounterId}/followups/{followUpId}/status")
     public String updateFollowUpStatus(@PathVariable Long encounterId,
                                         @PathVariable Long followUpId,
