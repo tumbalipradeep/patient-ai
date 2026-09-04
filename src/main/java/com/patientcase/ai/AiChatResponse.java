@@ -1,6 +1,7 @@
 package com.patientcase.ai;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import java.util.List;
 
 /**
  * Response returned to the browser for an AI chat turn.
@@ -16,7 +17,6 @@ public class AiChatResponse {
     /**
      * Populated only when complete=true.
      * A JSON string (or null) representing the structured clinical extraction.
-     * The browser will POST this back as-is when applying to the case-taking form.
      */
     private String structuredData;
 
@@ -28,6 +28,19 @@ public class AiChatResponse {
 
     /** True when the AI has gathered enough information AND the draft has been persisted server-side. */
     private boolean draftReady;
+
+    /**
+     * Patient-safety signals identified from patient-reported information only.
+     * These are NOT diagnoses. Each entry is a plain-language observation for clinician awareness.
+     * Always requires clinician assessment before any action is taken.
+     */
+    private List<String> redFlags;
+
+    /**
+     * True if the AI detected information that may require urgent clinical attention.
+     * Does NOT constitute a medical diagnosis or recommendation.
+     */
+    private boolean urgentFlag;
 
     private AiChatResponse() {}
 
@@ -54,6 +67,13 @@ public class AiChatResponse {
         return this;
     }
 
+    /** Attach red-flag observations (patient-safety signals only — NOT diagnoses). */
+    public AiChatResponse withRedFlags(List<String> flags, boolean urgent) {
+        this.redFlags = (flags != null && !flags.isEmpty()) ? flags : null;
+        if (urgent) this.urgentFlag = true;
+        return this;
+    }
+
     public static AiChatResponse disabled(String message) {
         AiChatResponse r = new AiChatResponse();
         r.reply = message;
@@ -73,4 +93,6 @@ public class AiChatResponse {
     public boolean isDisabled() { return disabled; }
     public String getError() { return error; }
     public boolean isDraftReady() { return draftReady; }
+    public List<String> getRedFlags() { return redFlags; }
+    public boolean isUrgentFlag() { return urgentFlag; }
 }

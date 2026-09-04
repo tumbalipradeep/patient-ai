@@ -1,6 +1,5 @@
 package com.patientcase.ai;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,6 +43,18 @@ public class AiDraftValidator {
     private static final int MAX_SYMPTOM_NAME       = 255;
     private static final int MAX_SYMPTOM_DURATION   = 100;
     private static final int MAX_SYMPTOM_NOTES      = 1000;
+
+    // Red-flag limits
+    private static final int MAX_RED_FLAGS          = 10;
+    private static final int MAX_RED_FLAG_LENGTH    = 500;
+
+    /**
+     * Words that would indicate a red flag is masquerading as a diagnosis or prescription.
+     * Any red-flag string containing these terms is rejected.
+     */
+    private static final Set<String> RED_FLAG_PROHIBITED_VERBS = Set.of(
+            "diagnos", "prescrib", "medic", "treatment", "drug", "administer",
+            "surgery", "operat", "refer to", "admit", "discharge");
 
     private static final Set<String> VALID_SEVERITIES = Set.of("MILD", "MODERATE", "SEVERE");
     private static final Set<String> VALID_ONSETS     = Set.of("SUDDEN", "GRADUAL", "UNKNOWN");
@@ -97,6 +108,7 @@ public class AiDraftValidator {
         clean.setHistoryOfPresentIllness(truncate(raw.getHistoryOfPresentIllness(), MAX_HISTORY));
         clean.setRelevantHistory(truncate(raw.getRelevantHistory(), MAX_RELEVANT_HISTORY));
         clean.setSymptoms(validateSymptoms(raw.getSymptoms()));
+        clean.setRedFlags(validateRedFlags(raw.getRedFlags()));
 
         // Prohibited lists always empty in the clean output
         // (they remain at default empty lists from AiDraftDto constructor)
@@ -124,6 +136,43 @@ public class AiDraftValidator {
             cs.setNotes(truncate(s.getNotes(), MAX_SYMPTOM_NOTES));
             cs.setConfidence(mapConfidence(s.getConfidence()));
             clean.add(cs);
+        }
+        return clean;
+    }
+
+    /**
+     * Validate and sanitise red-flag observations.
+     *
+     * Hard rules — throw if violated:
+     *   - Any flag containing prohibited clinical verbs (diagnosis/prescription language) is rejected.
+     *
+     * Soft rules — sanitise and continue:
+     *   - List capped at MAX_RED_FLAGS items.
+     *   - Each flag truncated to MAX_RED_FLAG_LENGTH chars.
+     *   - Null/blank flags dropped.
+     */
+    List<String> validateRedFlags(List<String> raw) {
+        if (raw == null || raw.isEmpty()) return new ArrayList<>();
+
+        List<String> clean = new ArrayList<>();
+        for (String flag : raw) {
+            if (flag == null || flag.isBlank()) continue;
+            String stripped = flag.strip();
+            String lower = stripped.toLowerCase();
+            for (String prohibited : RED_FLAG_PROHIBITED_VERBS) {
+                if (lower.contains(prohibited)) {
+                    log.warn("AI red flag rejected: contains prohibited clinical term '{}'", prohibited);
+                    throw new AiDraftValidationException(
+                            "AI red flag contains prohibited clinical language ('" + prohibited +
+                            "'). Red flags must be patient-safety observations only, not diagnoses or prescriptions.");
+                }
+            }
+            if (clean.size() >= MAX_RED_FLAGS) {
+                log.debug("AI red flag list capped at {}", MAX_RED_FLAGS);
+                break;
+            }
+            clean.add(stripped.length() > MAX_RED_FLAG_LENGTH
+                    ? stripped.substring(0, MAX_RED_FLAG_LENGTH) : stripped);
         }
         return clean;
     }

@@ -21,6 +21,15 @@ public class AiChatRequest {
     @Size(max = 4000, message = "userMessage must not exceed 4000 characters")
     private String userMessage;
 
+    /**
+     * Optional server-injected summary of facts already collected in this session.
+     * Helps the AI avoid re-asking for information already provided.
+     * Never sent from the browser — populated by the server from the session history.
+     * Max 2000 chars to limit token usage.
+     */
+    @Size(max = 2000)
+    private String knownFacts;
+
     public Long getEncounterId() { return encounterId; }
     public void setEncounterId(Long encounterId) { this.encounterId = encounterId; }
 
@@ -31,6 +40,9 @@ public class AiChatRequest {
 
     public String getUserMessage() { return userMessage; }
     public void setUserMessage(String userMessage) { this.userMessage = userMessage; }
+
+    public String getKnownFacts() { return knownFacts; }
+    public void setKnownFacts(String knownFacts) { this.knownFacts = knownFacts; }
 
     /** A single turn in the conversation. */
     public static class Message {

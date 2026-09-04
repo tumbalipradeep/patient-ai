@@ -144,6 +144,11 @@
                 history.push({ role: 'assistant', content: data.reply });
             }
 
+            // Show red-flag safety notice if the AI detected potentially urgent information
+            if (data.redFlags && data.redFlags.length > 0) {
+                showRedFlags(data.redFlags, data.urgentFlag);
+            }
+
             if (data.complete && data.structuredData) {
                 showCompleteCard(data.structuredData);
             }
@@ -257,6 +262,52 @@
     function hideCompleteCard() {
         completeCard.classList.add('d-none');
         structuredEl.textContent = '';
+    }
+
+    /**
+     * Show a patient-safety notice when the AI detects potentially urgent information.
+     * This is a SAFETY SIGNAL only — not a diagnosis. Requires clinician assessment.
+     * Text is set via textContent — XSS-safe.
+     */
+    function showRedFlags(flags, urgent) {
+        let container = document.getElementById('red-flag-notice');
+        if (!container) {
+            container = document.createElement('div');
+            container.id = 'red-flag-notice';
+            container.className = urgent
+                ? 'alert alert-danger mb-3'
+                : 'alert alert-warning mb-3';
+            container.setAttribute('role', 'alert');
+
+            const heading = document.createElement('strong');
+            heading.textContent = urgent
+                ? '⚠️ Important — Please seek immediate medical attention.'
+                : '⚠️ Clinical note for the clinician:';
+            container.appendChild(heading);
+
+            const disclaimer = document.createElement('p');
+            disclaimer.className = 'mb-1 small';
+            disclaimer.textContent = urgent
+                ? 'Based on what you have described, this may require urgent care. ' +
+                  'Please contact emergency services or go to your nearest emergency department immediately.'
+                : 'The following observations are based solely on what you reported. ' +
+                  'They are not a diagnosis. The clinician will review them.';
+            container.appendChild(disclaimer);
+
+            const list = document.createElement('ul');
+            list.className = 'mb-0 small';
+            flags.forEach(function (flag) {
+                const li = document.createElement('li');
+                li.textContent = flag;  // textContent — XSS-safe
+                list.appendChild(li);
+            });
+            container.appendChild(list);
+
+            // Insert before chat messages area
+            if (messagesEl.parentNode) {
+                messagesEl.parentNode.insertBefore(container, messagesEl);
+            }
+        }
     }
 
     /**

@@ -32,6 +32,12 @@ public class AiDraftDto {
     private String relevantHistory;          // max 5000
     private List<AiSymptomDraft> symptoms = new ArrayList<>();
 
+    /**
+     * Patient-safety observations based solely on patient-reported information.
+     * NOT diagnoses. Require clinician assessment. Max 10 items, max 500 chars each.
+     */
+    private List<String> redFlags = new ArrayList<>();
+
     // ---- Prohibited: captured only to detect violations, never applied ----
     // Jackson deserialises these so the validator can reject any non-empty values.
     private List<Object> diagnoses    = new ArrayList<>();
@@ -60,6 +66,11 @@ public class AiDraftDto {
     public List<AiSymptomDraft> getSymptoms() { return symptoms; }
     public void setSymptoms(List<AiSymptomDraft> symptoms) {
         this.symptoms = symptoms != null ? symptoms : new ArrayList<>();
+    }
+
+    public List<String> getRedFlags() { return redFlags; }
+    public void setRedFlags(List<String> redFlags) {
+        this.redFlags = redFlags != null ? redFlags : new ArrayList<>();
     }
 
     // ---- Prohibited fields (deserialised for violation detection only) ----

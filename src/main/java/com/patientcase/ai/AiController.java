@@ -10,6 +10,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -81,8 +82,12 @@ public class AiController {
         sessionService.getOrCreateSession(encounterId, username, isAdmin(authentication));
         List<AiChatRequest.Message> serverHistory = sessionService.getConversationHistory(encounterId);
 
+        // Inject a known-facts context note if the server has already collected information.
+        // This helps the AI avoid re-asking for information the patient already provided.
+        List<AiChatRequest.Message> historyWithContext = buildHistoryWithContext(serverHistory);
+
         // ---- Call the AI provider ----
-        AiChatResponse response = aiService.chat(serverHistory, userMessage);
+        AiChatResponse response = aiService.chat(historyWithContext, userMessage);
 
         // ---- Handle disabled / error responses without persisting ----
         if (response.isDisabled()) {
@@ -138,5 +143,32 @@ public class AiController {
     private boolean isAdmin(Authentication auth) {
         return auth.getAuthorities().stream()
                 .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
+    }
+
+    /**
+     * If the conversation has prior turns, prepend a brief context note so the AI
+     * knows what has already been collected and avoids repeating questions.
+     * The note is injected as a synthetic assistant message — never logged,
+     * never stored, never returned to the browser.
+     */
+    private List<AiChatRequest.Message> buildHistoryWithContext(
+            List<AiChatRequest.Message> history) {
+        if (history == null || history.isEmpty()) return history;
+
+        // Count how many patient turns we have to give the AI a turn-count hint
+        long patientTurns = history.stream()
+                .filter(m -> "user".equals(m.getRole()))
+                .count();
+        if (patientTurns == 0) return history;
+
+        // Insert a synthetic system-context note at position 0 (before the first turn)
+        // so the AI remembers to build on what it has already collected
+        String contextNote = "[Context: " + patientTurns + " patient response(s) already recorded. " +
+                "Review the conversation above and ask only about information not yet provided.]";
+
+        List<AiChatRequest.Message> withContext = new ArrayList<>(history.size() + 1);
+        withContext.add(new AiChatRequest.Message("system", contextNote));
+        withContext.addAll(history);
+        return withContext;
     }
 }

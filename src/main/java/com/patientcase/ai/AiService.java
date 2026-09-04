@@ -22,6 +22,12 @@ import java.util.Map;
 /**
  * Calls an OpenAI-compatible chat-completions API to power the AI case-taking assistant.
  *
+ * Batch 4 upgrades:
+ * - Every turn now returns a structured JSON object (not free text).
+ * - The AI performs adaptive questioning: asks only missing information.
+ * - Red-flag detection: patient-safety signals flagged for clinician awareness (NOT diagnoses).
+ * - Fact / inference / unknown separation maintained via DraftFieldConfidence.
+ *
  * Security guarantees:
  * - API key is never logged, never returned to the browser.
  * - Patient messages are not logged (only structural metadata).
@@ -50,54 +56,89 @@ public class AiService implements AiChatService {
 
     // ---- System prompt ----
     private static final String SYSTEM_PROMPT = """
-You are an AI-assisted clinical case-taking assistant helping to collect patient-reported information \
-for review by a qualified clinician. You are NOT a doctor and must never diagnose, prescribe, or give \
-medical advice.
+You are an AI-assisted clinical history-taking assistant. You help collect patient-reported \
+information for review by a qualified clinician. You are NOT a doctor.
 
-Your role:
-- Ask ONE clear, focused question at a time.
-- Begin with the patient's chief complaint / presenting problem.
-- Progress logically through: onset, duration, location, character, severity (1-10), \
-aggravating and relieving factors, associated symptoms, relevant past medical history, \
-current medications, known allergies.
-- Do NOT invent or assume symptoms, vitals, diagnoses, examinations, or treatments.
-- Clearly distinguish what the patient reports from any interpretation.
-- Stop when you have gathered sufficient information for a useful preliminary draft.
-- If the situation sounds urgent or dangerous, advise the user to seek immediate professional \
-medical care and end the conversation.
+ABSOLUTE PROHIBITIONS — never, under any circumstances:
+- Diagnose any condition
+- Prescribe or recommend medication or treatment
+- Perform or describe clinical examinations
+- Invent, assume, or fabricate symptoms, vitals, history, or any clinical information
+- Give medical advice
+- Claim certainty about any clinical matter
 
-When you have collected enough information, respond with EXACTLY this JSON block (and nothing else \
-on the line containing ```json):
+YOUR ROLE — adaptive history-taking:
+- Ask EXACTLY ONE focused question per turn.
+- Choose the single most important missing piece of information based on what the patient \
+has already told you. Do not repeat questions already answered.
+- Begin with the chief complaint. Then explore relevant areas such as:
+  onset and duration, location, character, severity (0–10), timing and pattern, \
+  aggravating and relieving factors, associated symptoms, relevant past medical history, \
+  current medications, known allergies — but only when clinically relevant to this complaint.
+- Do NOT mechanically go through every category. Be context-sensitive.
+- If the patient has already mentioned information, acknowledge it and ask about what is missing.
+- Stop collecting when you have sufficient information for a useful preliminary draft.
+- If the patient reports something that sounds potentially urgent (e.g. severe chest pain, \
+  difficulty breathing, sudden severe headache, signs of serious injury), add it as a \
+  red flag AND advise them to seek immediate professional medical care.
 
-```json
+RED FLAGS — patient-safety observations only:
+- Report only information the patient explicitly stated.
+- Red flags are safety SIGNALS for the clinician — they are NOT diagnoses.
+- Never use diagnostic language, prescribe, or imply treatment in a red flag.
+- Example of allowed red flag: "Patient reports sudden severe headache described as worst of their life."
+- Example of PROHIBITED red flag: "Possible subarachnoid haemorrhage — needs CT scan."
+
+RESPONSE FORMAT — you MUST respond with ONLY a JSON object on every turn. No other text. \
+No markdown. No explanation outside the JSON. The JSON must be one of:
+
+1. CONVERSATIONAL TURN (still collecting information):
 {
-  "chiefComplaint": "",
-  "historyOfPresentIllness": "",
-  "relevantHistory": "",
-  "assessmentNotes": "AI-collected patient-reported information — draft only, clinician review required",
-  "clinicalImpression": "",
-  "symptoms": [
-    {"name": "", "duration": "", "severity": "MILD|MODERATE|SEVERE", "onset": "SUDDEN|GRADUAL|UNKNOWN", "notes": ""}
-  ],
-  "examinations": [],
-  "diagnoses": [],
-  "treatments": [],
-  "followUpInstructions": "",
-  "followUpNotes": ""
+  "complete": false,
+  "nextQuestion": "The single question to ask the patient next.",
+  "patientReportedFacts": ["fact1", "fact2"],
+  "inferredInformation": ["inference1"],
+  "missingInformation": ["area1", "area2"],
+  "redFlags": [],
+  "urgentFlag": false
 }
-```
 
-Rules for the JSON:
-- Leave any field empty ("" or []) if the information was not reported.
-- severity must be one of: MILD, MODERATE, SEVERE.
-- onset must be one of: SUDDEN, GRADUAL, UNKNOWN.
-- examinations, diagnoses, and treatments must remain [] — do not populate these from patient-reported information.
-- The entire output is a DRAFT. Never claim certainty.
+2. FINAL TURN (enough information collected):
+{
+  "complete": true,
+  "nextQuestion": null,
+  "patientReportedFacts": ["fact1", "fact2"],
+  "inferredInformation": [],
+  "missingInformation": [],
+  "redFlags": [],
+  "urgentFlag": false,
+  "completionMessage": "Summary sentence shown to the patient.",
+  "draft": {
+    "chiefComplaint": "",
+    "historyOfPresentIllness": "",
+    "relevantHistory": "",
+    "symptoms": [
+      {
+        "name": "",
+        "duration": "",
+        "severity": "MILD|MODERATE|SEVERE|null",
+        "onset": "SUDDEN|GRADUAL|UNKNOWN",
+        "notes": "",
+        "confidence": "PATIENT_REPORTED|AI_INFERRED|MISSING"
+      }
+    ]
+  }
+}
+
+STRICT RULES FOR FINAL DRAFT:
+- severity must be MILD, MODERATE, or SEVERE — or null if the patient did not state one.
+- onset must be SUDDEN, GRADUAL, or UNKNOWN.
+- confidence must be PATIENT_REPORTED, AI_INFERRED, or MISSING.
+- Leave fields as "" or [] if not reported — never invent information.
+- Never include diagnoses, treatments, examinations, or vitals in the draft.
+- assessmentNotes and clinicalImpression are PROHIBITED in the draft.
+- Entire draft is a preliminary patient-reported summary — clinician must review and verify.
 """;
-
-    /** Marker we look for in the model's reply to detect structured extraction. */
-    private static final String JSON_FENCE_OPEN  = "```json";
-    private static final String JSON_FENCE_CLOSE = "```";
 
     public AiService(RestTemplateBuilder restTemplateBuilder, ObjectMapper objectMapper) {
         this.restTemplate = restTemplateBuilder
@@ -111,6 +152,7 @@ Rules for the JSON:
      * Process one chat turn.
      * Returns an {@link AiChatResponse} — never throws.
      */
+    @Override
     public AiChatResponse chat(List<AiChatRequest.Message> history, String userMessage) {
         if (!enabled || apiKey == null || apiKey.isBlank()) {
             return AiChatResponse.disabled(
@@ -122,7 +164,6 @@ Rules for the JSON:
             String rawReply = callProvider(history, userMessage);
             return parseReply(rawReply);
         } catch (RestClientException e) {
-            // Log safe technical info only — no key, no patient data
             log.warn("AI provider request failed: {}", e.getClass().getSimpleName());
             return AiChatResponse.error(
                     "AI service is temporarily unavailable. Please try again or proceed with manual case-taking.");
@@ -138,7 +179,6 @@ Rules for the JSON:
     private String callProvider(List<AiChatRequest.Message> history, String userMessage) {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
-        // API key is only ever placed in this header — never in logs, never in responses
         headers.set(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey);
 
         List<Map<String, String>> messages = buildMessages(history, userMessage);
@@ -147,7 +187,7 @@ Rules for the JSON:
                 "model", model,
                 "messages", messages,
                 "max_tokens", 1024,
-                "temperature", 0.2   // Lower temperature → more consistent structured output
+                "temperature", 0.2
         );
 
         HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
@@ -185,46 +225,86 @@ Rules for the JSON:
     }
 
     /**
-     * Parses the raw LLM reply.
-     * If it contains a JSON fence block, extracts and validates the structured data.
-     * Falls back to a plain reply if parsing fails.
+     * Parse the structured JSON turn response from the AI.
+     *
+     * Expected format: a JSON object with "complete", "nextQuestion", "redFlags",
+     * "urgentFlag", and optionally "draft" when complete=true.
+     *
+     * Falls back gracefully to a plain reply if the response is not valid JSON
+     * or does not conform to the expected structure.
      */
-    private AiChatResponse parseReply(String rawReply) {
+    AiChatResponse parseReply(String rawReply) {
         if (rawReply == null || rawReply.isBlank()) {
             return AiChatResponse.error("The AI returned an empty response. Please try again.");
         }
 
-        int jsonStart = rawReply.indexOf(JSON_FENCE_OPEN);
-        if (jsonStart == -1) {
-            // Normal conversational reply
-            return AiChatResponse.reply(rawReply.strip());
+        // Strip markdown fences if the model wrapped the JSON anyway
+        String candidate = rawReply.strip();
+        if (candidate.startsWith("```json")) {
+            int start = candidate.indexOf('\n') + 1;
+            int end = candidate.lastIndexOf("```");
+            if (start > 0 && end > start) {
+                candidate = candidate.substring(start, end).strip();
+            }
+        } else if (candidate.startsWith("```")) {
+            int start = candidate.indexOf('\n') + 1;
+            int end = candidate.lastIndexOf("```");
+            if (start > 0 && end > start) {
+                candidate = candidate.substring(start, end).strip();
+            }
         }
-
-        // Extract the JSON block between ``` fences
-        int contentStart = rawReply.indexOf('\n', jsonStart) + 1;
-        int jsonEnd = rawReply.indexOf(JSON_FENCE_CLOSE, contentStart);
-
-        if (contentStart <= 0 || jsonEnd <= contentStart) {
-            // Malformed fence — treat as conversational
-            log.debug("AI reply contained malformed JSON fence — treating as plain reply");
-            return AiChatResponse.reply(rawReply.strip());
-        }
-
-        String jsonCandidate = rawReply.substring(contentStart, jsonEnd).strip();
 
         try {
-            // Validate it parses as a JSON object — don't trust arbitrary structure
-            objectMapper.readTree(jsonCandidate);
-            // Any human-readable message before the fence becomes the reply
-            String humanReply = rawReply.substring(0, jsonStart).strip();
-            if (humanReply.isBlank()) {
-                humanReply = "I have gathered enough information to prepare a preliminary draft for clinician review.";
-            }
-            return AiChatResponse.complete(humanReply, jsonCandidate);
+            TurnResponse turn = objectMapper.readValue(candidate, TurnResponse.class);
+            return buildResponse(turn);
         } catch (Exception e) {
-            log.debug("AI returned JSON fence but content was not valid JSON — treating as plain reply");
+            // Model did not return valid structured JSON — fall back to plain reply
+            log.debug("AI response was not structured JSON ({}), treating as plain reply",
+                    e.getClass().getSimpleName());
             return AiChatResponse.reply(rawReply.strip());
         }
+    }
+
+    private AiChatResponse buildResponse(TurnResponse turn) {
+        if (turn == null) {
+            return AiChatResponse.error("AI returned an unrecognised response structure.");
+        }
+
+        // Red flags — attach to all responses (present in both conversational and final turns)
+        List<String> redFlags = turn.redFlags != null ? turn.redFlags : new ArrayList<>();
+        boolean urgent = Boolean.TRUE.equals(turn.urgentFlag);
+
+        if (Boolean.TRUE.equals(turn.complete) && turn.draft != null) {
+            // Embed red flags into the draft payload so they persist alongside the draft
+            turn.draft.redFlags = redFlags;
+            // Final turn: build structured data JSON from the nested draft
+            try {
+                String draftJson = objectMapper.writeValueAsString(turn.draft);
+                String humanMsg = (turn.completionMessage != null && !turn.completionMessage.isBlank())
+                        ? turn.completionMessage
+                        : "I have gathered enough information to prepare a preliminary draft for clinician review.";
+                return AiChatResponse.complete(humanMsg, draftJson)
+                        .withRedFlags(redFlags, urgent);
+            } catch (Exception e) {
+                log.warn("Failed to serialise AI draft: {}", e.getClass().getSimpleName());
+                return AiChatResponse.error(
+                        "AI response could not be processed. Please proceed with manual case-taking.");
+            }
+        }
+
+        // Conversational turn
+        String question = (turn.nextQuestion != null && !turn.nextQuestion.isBlank())
+                ? turn.nextQuestion.strip()
+                : null;
+
+        if (question == null) {
+            // nextQuestion is required for non-complete turns
+            log.debug("AI returned complete=false but nextQuestion is missing");
+            return AiChatResponse.error(
+                    "AI response was incomplete. Please try again or proceed manually.");
+        }
+
+        return AiChatResponse.reply(question).withRedFlags(redFlags, urgent);
     }
 
     // ---- Package-private test hook ----
@@ -233,6 +313,8 @@ Rules for the JSON:
     AiChatResponse testableParseReply(String rawReply) {
         return parseReply(rawReply);
     }
+
+    // ---- Inner DTOs for provider response ----
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     static class ProviderResponse {
@@ -247,5 +329,51 @@ Rules for the JSON:
     @JsonIgnoreProperties(ignoreUnknown = true)
     static class ChoiceMessage {
         public String content;
+    }
+
+    /**
+     * Maps the structured per-turn JSON response from the AI.
+     * Jackson ignores unknown fields for forward compatibility.
+     */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    static class TurnResponse {
+        public Boolean complete;
+        public String nextQuestion;
+        public List<String> patientReportedFacts;
+        public List<String> inferredInformation;
+        public List<String> missingInformation;
+        public List<String> redFlags;
+        public Boolean urgentFlag;
+        public String completionMessage;
+        public DraftPayload draft;
+    }
+
+    /**
+     * The nested draft object only present when complete=true.
+     * Maps directly to the fields AiDraftDto accepts — validator enforces safety.
+     */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    static class DraftPayload {
+        public String chiefComplaint;
+        public String historyOfPresentIllness;
+        public String relevantHistory;
+        public List<SymptomPayload> symptoms;
+        // redFlags are promoted from the TurnResponse level into this payload
+        // before serialisation so they persist alongside the draft.
+        public List<String> redFlags;
+        // Prohibited fields (diagnoses, treatments, examinations, assessmentNotes,
+        // clinicalImpression) are NOT declared here — Jackson ignores them via
+        // @JsonIgnoreProperties(ignoreUnknown = true), so they simply don't reach
+        // the validator as data. The validator enforces this independently.
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    static class SymptomPayload {
+        public String name;
+        public String duration;
+        public String severity;
+        public String onset;
+        public String notes;
+        public String confidence;
     }
 }
