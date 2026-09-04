@@ -64,6 +64,10 @@
                                            class="btn btn-outline-secondary btn-sm" title="Edit">
                                             <i class="bi bi-pencil"></i>
                                         </a>
+                                        <a th:href="@{/admin/users/{id}/reset-password(id=${u.id})}"
+                                           class="btn btn-outline-warning btn-sm" title="Reset Password">
+                                            <i class="bi bi-key"></i>
+                                        </a>
                                         <form th:if="${u.enabled}"
                                               th:action="@{/admin/users/{id}/disable(id=${u.id})}"
                                               method="post" class="d-inline">

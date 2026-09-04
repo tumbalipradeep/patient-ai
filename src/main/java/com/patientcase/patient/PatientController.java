@@ -5,9 +5,11 @@ import com.patientcase.case_management.CasePriority;
 import com.patientcase.case_management.CaseStatus;
 import com.patientcase.case_management.PatientCase;
 import com.patientcase.case_management.PatientCaseService;
+import com.patientcase.audit.AuditService;
 import com.patientcase.encounter.Encounter;
 import com.patientcase.encounter.EncounterService;
 import com.patientcase.appointment.AppointmentService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -63,6 +65,7 @@ public class PatientController {
     @PostMapping("/new")
     public String createPatient(@Valid @ModelAttribute("patientForm") PatientCreateRequest request,
                                  BindingResult result,
+                                 HttpServletRequest httpRequest,
                                  Model model,
                                  RedirectAttributes redirectAttributes) {
         if (result.hasErrors()) {
@@ -70,7 +73,7 @@ public class PatientController {
             model.addAttribute("bloodGroups", new String[]{"A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"});
             return "patients/new";
         }
-        Patient patient = patientService.createPatient(request);
+        Patient patient = patientService.createPatient(request, AuditService.extractIp(httpRequest));
         redirectAttributes.addFlashAttribute("successMessage", "Patient " + patient.getPatientNumber() + " registered successfully.");
         return "redirect:/patients/" + patient.getId();
     }
@@ -119,6 +122,7 @@ public class PatientController {
     public String updatePatient(@PathVariable Long id,
                                  @Valid @ModelAttribute("patientForm") PatientUpdateRequest request,
                                  BindingResult result,
+                                 HttpServletRequest httpRequest,
                                  Model model,
                                  RedirectAttributes redirectAttributes) {
         if (result.hasErrors()) {
@@ -128,7 +132,7 @@ public class PatientController {
             model.addAttribute("bloodGroups", new String[]{"A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"});
             return "patients/edit";
         }
-        Patient patient = patientService.updatePatient(id, request);
+        Patient patient = patientService.updatePatient(id, request, AuditService.extractIp(httpRequest));
         redirectAttributes.addFlashAttribute("successMessage", "Patient updated successfully.");
         return "redirect:/patients/" + patient.getId();
     }

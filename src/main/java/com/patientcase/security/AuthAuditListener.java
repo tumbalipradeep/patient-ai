@@ -8,6 +8,7 @@ import org.springframework.context.event.EventListener;
 import org.springframework.security.authentication.event.AuthenticationSuccessEvent;
 import org.springframework.security.authentication.event.LogoutSuccessEvent;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.web.authentication.WebAuthenticationDetails;
 import org.springframework.stereotype.Component;
 
 /**
@@ -29,7 +30,9 @@ public class AuthAuditListener {
     public void onLoginSuccess(AuthenticationSuccessEvent event) {
         try {
             String username = extractUsername(event.getAuthentication().getPrincipal());
-            auditService.log(AuditAction.LOGIN, "User", null, "Login successful for: " + username);
+            String ipAddress = extractIp(event.getAuthentication().getDetails());
+            auditService.log(AuditAction.LOGIN, "User", null,
+                    "Login successful for: " + username, ipAddress);
         } catch (Exception e) {
             log.warn("Failed to audit login event: {}", e.getMessage());
         }
@@ -40,7 +43,9 @@ public class AuthAuditListener {
         try {
             if (event.getAuthentication() != null) {
                 String username = extractUsername(event.getAuthentication().getPrincipal());
-                auditService.log(AuditAction.LOGOUT, "User", null, "Logout for: " + username);
+                String ipAddress = extractIp(event.getAuthentication().getDetails());
+                auditService.log(AuditAction.LOGOUT, "User", null,
+                        "Logout for: " + username, ipAddress);
             }
         } catch (Exception e) {
             log.warn("Failed to audit logout event: {}", e.getMessage());
@@ -52,5 +57,16 @@ public class AuthAuditListener {
             return ud.getUsername();
         }
         return principal != null ? principal.toString() : "unknown";
+    }
+
+    /**
+     * Extracts IP from Spring Security's WebAuthenticationDetails.
+     * This is populated automatically by Spring Security from the login request.
+     */
+    private String extractIp(Object details) {
+        if (details instanceof WebAuthenticationDetails wad) {
+            return wad.getRemoteAddress();
+        }
+        return null;
     }
 }

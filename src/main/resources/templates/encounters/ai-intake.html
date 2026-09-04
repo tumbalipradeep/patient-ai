@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security" lang="en">
+<head th:replace="~{fragments/head :: head('AI Intake Assistant')}"></head>
+<body class="app-body">
+<div class="app-layout">
+    <div th:replace="~{fragments/sidebar :: sidebar}"></div>
+    <main class="main-content">
+
+        <!-- ── Page header ─────────────────────────────────────────── -->
+        <div class="content-header d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h2 class="h4 mb-0 fw-bold">
+                    <i class="bi bi-robot me-2 text-primary"></i>AI Intake Assistant
+                </h2>
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb mb-0">
+                        <li class="breadcrumb-item"><a th:href="@{/dashboard}">Dashboard</a></li>
+                        <li class="breadcrumb-item">
+                            <a th:href="@{/cases/{id}(id=${encounter.patientCase.id})}"
+                               th:text="${encounter.patientCase.caseNumber}">Case</a>
+                        </li>
+                        <li class="breadcrumb-item">
+                            <a th:href="@{/encounters/{id}(id=${encounter.id})}">Encounter</a>
+                        </li>
+                        <li class="breadcrumb-item active">AI Intake</li>
+                    </ol>
+                </nav>
+            </div>
+            <a th:href="@{/encounters/{id}(id=${encounter.id})}"
+               class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-arrow-left me-1"></i>Back to Encounter
+            </a>
+        </div>
+
+        <div th:replace="~{fragments/alerts :: alerts}"></div>
+
+        <!-- ── Disclaimer banner ────────────────────────────────────── -->
+        <div class="alert alert-warning d-flex align-items-start gap-2 mb-4" role="alert">
+            <i class="bi bi-exclamation-triangle-fill fs-5 flex-shrink-0 mt-1"></i>
+            <div>
+                <strong>This tool is an AI intake assistant, not a medical professional.</strong>
+                All information collected is patient-reported and must be reviewed and verified
+                by a qualified clinician before any clinical decisions are made.
+                Do not use AI-generated summaries as a substitute for clinical judgment.
+            </div>
+        </div>
+
+        <!-- ── Draft-ready banner (shown when server has a persisted draft) ── -->
+        <div th:if="${sessionHasDraft}"
+             class="alert alert-success d-flex align-items-center gap-2 mb-4"
+             id="draft-ready-banner" role="alert">
+            <i class="bi bi-clipboard2-check-fill fs-5 flex-shrink-0"></i>
+            <div>
+                <strong>AI intake draft is ready for clinician review.</strong>
+                <a th:href="@{/encounters/{id}/ai-intake/draft(id=${encounter.id})}"
+                   class="alert-link ms-2">
+                    <i class="bi bi-arrow-right-circle me-1"></i>Review and apply draft
+                </a>
+            </div>
+        </div>
+
+        <div class="row g-4">
+
+            <!-- ── Context sidebar ────────────────────────────────── -->
+            <div class="col-lg-3">
+                <div class="card border-0 shadow-sm mb-3">
+                    <div class="card-header bg-white py-2">
+                        <h6 class="mb-0 fw-semibold"><i class="bi bi-person-circle me-1"></i>Patient</h6>
+                    </div>
+                    <div class="card-body">
+                        <dl class="row small mb-0">
+                            <dt class="col-5 text-muted">Name</dt>
+                            <dd class="col-7 fw-semibold"
+                                th:text="${encounter.patientCase.patient.fullName}">Patient</dd>
+                            <dt class="col-5 text-muted">Case</dt>
+                            <dd class="col-7"
+                                th:text="${encounter.patientCase.caseNumber}">Case#</dd>
+                            <dt class="col-5 text-muted">Complaint</dt>
+                            <dd class="col-7"
+                                th:text="${encounter.patientCase.chiefComplaint ?: '—'}">Complaint</dd>
+                            <dt class="col-5 text-muted">Clinician</dt>
+                            <dd class="col-7"
+                                th:text="${encounter.clinician.fullName}">Clinician</dd>
+                            <dt class="col-5 text-muted">Status</dt>
+                            <dd class="col-7">
+                                <span class="badge"
+                                      th:classappend="${encounter.status.name() == 'COMPLETED'} ? 'bg-success'
+                                                    : (${encounter.status.name() == 'DRAFT'} ? 'bg-warning text-dark'
+                                                    : (${encounter.status.name() == 'CANCELLED'} ? 'bg-danger'
+                                                    : 'bg-secondary'))"
+                                      th:text="${encounter.status}">Status</span>
+                            </dd>
+                        </dl>
+                    </div>
+                </div>
+
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-white py-2">
+                        <h6 class="mb-0 fw-semibold"><i class="bi bi-info-circle me-1"></i>How it works</h6>
+                    </div>
+                    <div class="card-body small text-muted">
+                        <p class="mb-2">The AI will ask the patient one question at a time to gather
+                            a structured history of the presenting complaint.</p>
+                        <p class="mb-2">When enough information has been collected, it will produce
+                            a preliminary draft for clinician review.</p>
+                        <p class="mb-0">
+                            <strong class="text-dark">Remember:</strong> the AI cannot examine
+                            the patient, diagnose, or prescribe. All output is a draft only.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── Chat panel ──────────────────────────────────────── -->
+            <div class="col-lg-9">
+                <div class="card border-0 shadow-sm d-flex flex-column" style="height:70vh;">
+
+                    <div class="card-header bg-white py-2 d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0 fw-semibold">
+                            <i class="bi bi-chat-dots me-1 text-primary"></i>Conversation
+                        </h6>
+                        <button id="btn-clear" class="btn btn-outline-secondary btn-sm"
+                                type="button" title="Clear conversation">
+                            <i class="bi bi-trash me-1"></i>Clear
+                        </button>
+                    </div>
+
+                    <!-- Message area -->
+                    <div id="chat-messages"
+                         class="flex-grow-1 overflow-auto p-3"
+                         style="background:#f8f9fa;"
+                         role="log"
+                         aria-live="polite"
+                         aria-label="Conversation">
+
+                        <!-- Initial AI greeting rendered server-side so the page isn't blank -->
+                        <div class="d-flex mb-3">
+                            <div class="flex-shrink-0 me-2">
+                                <span class="avatar-sm bg-primary rounded-circle d-flex align-items-center
+                                             justify-content-center" style="width:32px;height:32px;">
+                                    <i class="bi bi-robot text-white" style="font-size:0.85rem;"></i>
+                                </span>
+                            </div>
+                            <div>
+                                <div class="bg-white border rounded-3 px-3 py-2 shadow-sm"
+                                     style="max-width:520px;">
+                                    <p class="mb-0 small">
+                                        Hello. I'm the AI intake assistant.
+                                        I'll ask you a few questions to help collect information
+                                        about your visit for the clinician's review.
+                                        To start, please tell me: <strong>what brings you in today?</strong>
+                                    </p>
+                                </div>
+                                <div class="text-muted mt-1" style="font-size:0.7rem;">AI Assistant</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Loading indicator (hidden by default) -->
+                    <div id="chat-loading" class="px-3 py-2 d-none" aria-hidden="true">
+                        <div class="d-flex align-items-center gap-2 text-muted small">
+                            <div class="spinner-border spinner-border-sm text-primary" role="status">
+                                <span class="visually-hidden">AI is responding…</span>
+                            </div>
+                            <span>AI is thinking…</span>
+                        </div>
+                    </div>
+
+                    <!-- Error banner (hidden by default) -->
+                    <div id="chat-error"
+                         class="alert alert-danger alert-dismissible mx-3 mb-0 d-none"
+                         role="alert">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                        <span id="chat-error-text"></span>
+                        <button type="button" class="btn-close" aria-label="Close"
+                                onclick="document.getElementById('chat-error').classList.add('d-none')">
+                        </button>
+                    </div>
+
+                    <!-- Input row -->
+                    <div class="card-footer bg-white border-top p-3">
+                        <div class="d-flex gap-2">
+                            <label for="chat-input" class="visually-hidden">Your message</label>
+                            <textarea id="chat-input"
+                                      class="form-control"
+                                      rows="2"
+                                      maxlength="4000"
+                                      placeholder="Type your response here…"
+                                      aria-label="Your message"></textarea>
+                            <button id="btn-send"
+                                    class="btn btn-primary px-4 align-self-end"
+                                    type="button">
+                                <i class="bi bi-send-fill me-1"></i>Send
+                            </button>
+                        </div>
+                        <div class="d-flex justify-content-between mt-1">
+                            <span class="text-muted" style="font-size:0.7rem;">
+                                Press <kbd>Ctrl</kbd>+<kbd>Enter</kbd> to send
+                            </span>
+                            <span id="char-count" class="text-muted" style="font-size:0.7rem;">0 / 4000</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Structured-data result card (hidden until AI completes) -->
+                <div id="ai-complete-card" class="card border-0 shadow-sm mt-3 d-none">
+                    <div class="card-header bg-success text-white py-2">
+                        <h6 class="mb-0 fw-semibold">
+                            <i class="bi bi-clipboard2-check me-1"></i>
+                            Preliminary Draft — Clinician Review Required
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <p class="small text-muted mb-3">
+                            The AI has gathered sufficient information to produce the following
+                            draft. This is <strong>patient-reported only</strong> and has not been
+                            clinically verified. Review and amend before saving to the record.
+                        </p>
+                        <pre id="ai-structured-output"
+                             class="bg-light border rounded p-3 small"
+                             style="white-space:pre-wrap;word-break:break-word;"></pre>
+                        <a th:href="@{/encounters/{id}/ai-intake/draft(id=${encounter.id})}"
+                           class="btn btn-primary mt-2">
+                            <i class="bi bi-clipboard2-check me-1"></i>Review &amp; Apply Draft
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div><!-- /row -->
+
+    </main>
+</div><!-- /app-layout -->
+
+<div th:replace="~{fragments/footer :: footer}"></div>
+
+<!-- Pass encounter ID and session state to JS via data attributes — no inline script, no secrets -->
+<div id="ai-intake-data"
+     th:attr="data-encounter-id=${encounter.id},
+              data-session-status=${sessionStatus ?: 'IN_PROGRESS'},
+              data-has-draft=${sessionHasDraft ?: false}"
+     style="display:none;"
+     aria-hidden="true"></div>
+
+<script th:src="@{/js/ai-intake.js}"></script>
+</body>
+</html>

@@ -38,6 +38,7 @@ public class ProfileController {
         }
         try {
             userService.changePassword(authentication.getName(), request);
+            userService.clearMustChangePassword(authentication.getName());
             redirectAttributes.addFlashAttribute("successMessage", "Password changed successfully.");
             return "redirect:/dashboard";
         } catch (IllegalArgumentException e) {

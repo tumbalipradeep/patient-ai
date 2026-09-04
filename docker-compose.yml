@@ -1,24 +1,65 @@
 version: '3.8'
 
+# ============================================================
+# docker-compose.yml
+#
+# Development / local:   docker-compose up -d
+# Production deployment: override sensitive env vars via
+#                        environment variables or a .env file
+#                        (never commit .env to version control)
+# ============================================================
+
 services:
+
+  # ---- PostgreSQL ----
   postgres:
     image: postgres:16-alpine
     container_name: patientcase-postgres
     environment:
-      POSTGRES_DB: patientcase
-      POSTGRES_USER: patientcase
-      POSTGRES_PASSWORD: patientcase
+      POSTGRES_DB: ${POSTGRES_DB:-patientcase}
+      POSTGRES_USER: ${POSTGRES_USER:-patientcase}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-patientcase}
     ports:
-      - "5432:5432"
+      - "${DB_PORT:-5432}:5432"
     volumes:
       - patientcase-pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U patientcase -d patientcase"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-patientcase} -d ${POSTGRES_DB:-patientcase}"]
       interval: 10s
       timeout: 5s
       retries: 5
     restart: unless-stopped
 
+  # ---- Application ----
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: patientcase-app
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      DATABASE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-patientcase}
+      DATABASE_USERNAME: ${POSTGRES_USER:-patientcase}
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-patientcase}
+      SERVER_PORT: 8080
+      APP_DOCUMENT_STORAGE_PATH: /var/patientcase/documents
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    volumes:
+      - patientcase-documents:/var/patientcase/documents
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      start_period: 60s
+      retries: 3
+    restart: unless-stopped
+
 volumes:
   patientcase-pgdata:
+    driver: local
+  patientcase-documents:
     driver: local

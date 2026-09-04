@@ -1,6 +1,8 @@
 package com.patientcase.config;
 
 import com.patientcase.security.UserDetailsServiceImpl;
+import com.patientcase.security.MustChangePasswordFilter;
+import com.patientcase.user.UserRepository;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -18,6 +20,7 @@ import org.springframework.security.web.authentication.logout.LogoutSuccessHandl
 import org.springframework.security.web.authentication.logout.SecurityContextLogoutHandler;
 import org.springframework.security.authentication.event.LogoutSuccessEvent;
 import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 @Configuration
 @EnableWebSecurity
@@ -26,11 +29,14 @@ public class SecurityConfig {
 
     private final UserDetailsServiceImpl userDetailsService;
     private final ApplicationEventPublisher eventPublisher;
+    private final UserRepository userRepository;
 
     public SecurityConfig(UserDetailsServiceImpl userDetailsService,
-                          ApplicationEventPublisher eventPublisher) {
+                          ApplicationEventPublisher eventPublisher,
+                          UserRepository userRepository) {
         this.userDetailsService = userDetailsService;
         this.eventPublisher = eventPublisher;
+        this.userRepository = userRepository;
     }
 
     @Bean
@@ -56,7 +62,8 @@ public class SecurityConfig {
         http
             .authenticationProvider(authenticationProvider())
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/login", "/css/**", "/js/**", "/images/**", "/error").permitAll()
+                .requestMatchers("/login", "/css/**", "/js/**", "/images/**", "/fonts/**", "/error").permitAll()
+                .requestMatchers("/actuator/health").permitAll()
                 .requestMatchers("/admin/**").hasRole("ADMIN")
                 .requestMatchers("/patients/**").hasAnyRole("ADMIN", "DOCTOR", "NURSE", "RECEPTIONIST")
                 .requestMatchers("/cases/**").hasAnyRole("ADMIN", "DOCTOR", "NURSE")
@@ -95,9 +102,15 @@ public class SecurityConfig {
             )
             .csrf(csrf -> csrf
                 .ignoringRequestMatchers("/api/**")
-            );
+            )
+            .addFilterAfter(mustChangePasswordFilter(), UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
+    }
+
+    @Bean
+    public MustChangePasswordFilter mustChangePasswordFilter() {
+        return new MustChangePasswordFilter(userRepository);
     }
 
     @Bean

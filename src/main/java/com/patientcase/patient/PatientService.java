@@ -43,22 +43,32 @@ public class PatientService {
 
     @Transactional
     public Patient createPatient(PatientCreateRequest request) {
+        return createPatient(request, null);
+    }
+
+    @Transactional
+    public Patient createPatient(PatientCreateRequest request, String ipAddress) {
         Patient patient = new Patient();
         patient.setPatientNumber(generatePatientNumber());
         mapRequestToPatient(request, patient);
         Patient saved = patientRepository.save(patient);
         auditService.log(AuditAction.PATIENT_CREATED, "Patient", saved.getId(),
-                "Patient " + saved.getPatientNumber() + " created");
+                "Patient " + saved.getPatientNumber() + " created", ipAddress);
         return saved;
     }
 
     @Transactional
     public Patient updatePatient(Long id, PatientUpdateRequest request) {
+        return updatePatient(id, request, null);
+    }
+
+    @Transactional
+    public Patient updatePatient(Long id, PatientUpdateRequest request, String ipAddress) {
         Patient patient = findById(id);
         mapUpdateRequestToPatient(request, patient);
         Patient saved = patientRepository.save(patient);
         auditService.log(AuditAction.PATIENT_UPDATED, "Patient", saved.getId(),
-                "Patient " + saved.getPatientNumber() + " updated");
+                "Patient " + saved.getPatientNumber() + " updated", ipAddress);
         return saved;
     }
 

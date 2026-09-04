@@ -40,6 +40,7 @@ spring:
     resources:
       cache:
         period: 0
+      static-locations: classpath:/static/
 
   mvc:
     hiddenmethod:
@@ -66,3 +67,18 @@ logging:
 app:
   document:
     storage-path: ${APP_DOCUMENT_STORAGE_PATH:${user.home}/patientcase-documents}
+  ai:
+    api-url: ${AI_API_URL:https://api.openai.com/v1/chat/completions}
+    api-key: ${AI_API_KEY:}
+    model: ${AI_MODEL:gpt-4o-mini}
+    enabled: ${AI_ENABLED:false}
+
+# Actuator — /actuator/health only; details visible locally for development
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: when-authorized

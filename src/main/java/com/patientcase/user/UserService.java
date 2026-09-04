@@ -5,6 +5,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.security.SecureRandom;
 import java.util.List;
 
 @Service
@@ -107,6 +108,70 @@ public class UserService {
         }
         user.setEnabled(enabled);
         return userRepository.save(user);
+    }
+
+    /**
+     * Admin-initiated password reset.
+     * Generates a cryptographically random 16-character temporary password,
+     * BCrypt-hashes it, sets mustChangePassword=true, and returns the plaintext
+     * to the caller for one-time display only.
+     *
+     * Security guarantees:
+     * - Plaintext is NEVER logged, never stored, and never placed in audit metadata.
+     * - An admin cannot use this method on their own account.
+     */
+    @Transactional
+    public String resetPassword(Long targetUserId, String requestingAdminUsername) {
+        User target = findById(targetUserId);
+        if (target.getUsername().equals(requestingAdminUsername)) {
+            throw new IllegalArgumentException(
+                    "Use the Change Password page to change your own password.");
+        }
+        String tempPassword = generateTemporaryPassword();
+        target.setPasswordHash(passwordEncoder.encode(tempPassword));
+        target.setMustChangePassword(true);
+        userRepository.save(target);
+        return tempPassword;
+    }
+
+    /**
+     * Generates a 16-character cryptographically random password.
+     * Contains at least one uppercase, lowercase, digit, and symbol.
+     */
+    private String generateTemporaryPassword() {
+        final String UPPER   = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+        final String LOWER   = "abcdefghjkmnpqrstuvwxyz";
+        final String DIGITS  = "23456789";
+        final String SYMBOLS = "!@#%&*";
+        final String ALL     = UPPER + LOWER + DIGITS + SYMBOLS;
+        SecureRandom rnd = new SecureRandom();
+        char[] pw = new char[16];
+        pw[0] = UPPER.charAt(rnd.nextInt(UPPER.length()));
+        pw[1] = LOWER.charAt(rnd.nextInt(LOWER.length()));
+        pw[2] = DIGITS.charAt(rnd.nextInt(DIGITS.length()));
+        pw[3] = SYMBOLS.charAt(rnd.nextInt(SYMBOLS.length()));
+        for (int i = 4; i < 16; i++) {
+            pw[i] = ALL.charAt(rnd.nextInt(ALL.length()));
+        }
+        // Shuffle so guaranteed characters don't occupy predictable positions
+        for (int i = 15; i > 0; i--) {
+            int j = rnd.nextInt(i + 1);
+            char tmp = pw[i]; pw[i] = pw[j]; pw[j] = tmp;
+        }
+        return new String(pw);
+    }
+
+    /**
+     * Clears the mustChangePassword flag after a successful voluntary password change.
+     * Called by ProfileController after changePassword succeeds.
+     */
+    @Transactional
+    public void clearMustChangePassword(String username) {
+        User user = findByUsername(username);
+        if (user.isMustChangePassword()) {
+            user.setMustChangePassword(false);
+            userRepository.save(user);
+        }
     }
 
     /**
