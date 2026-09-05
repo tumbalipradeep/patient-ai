@@ -1,10 +1,7 @@
 /**
  * AI Intake Assistant — client-side chat logic.
  *
- * Communicates with POST /api/ai/chat (Spring Security CSRF is exempted for
- * /api/** in SecurityConfig, so no CSRF token is required in the request body).
- * However, we still read the meta tags emitted by head.html and include the
- * header defensively in case the exemption is ever narrowed.
+ * Communicates with POST /api/ai/chat using the CSRF token emitted by head.html.
  *
  * SECURITY:
  * - API key is NEVER present here — it lives server-side only.
@@ -38,7 +35,7 @@
     const sessionStatus = dataEl.getAttribute('data-session-status') || 'IN_PROGRESS';
     const hasDraft     = dataEl.getAttribute('data-has-draft') === 'true';
 
-    // ── CSRF token from meta tags (defensive — /api/** is CSRF-exempt) ────────
+    // ── CSRF token from meta tags ────────────────────────────────────────────
     const csrfToken  = (document.querySelector('meta[name="_csrf"]')        || {}).content;
     const csrfHeader = (document.querySelector('meta[name="_csrf_header"]') || {}).content;
 

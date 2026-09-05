@@ -7,6 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -99,7 +100,25 @@ public class AuditService {
         LocalDateTime fromDt = (from != null) ? from.atStartOfDay() : null;
         LocalDateTime toDt   = (to   != null) ? to.atTime(23, 59, 59) : null;
         String usernameFilter = (username != null && username.isBlank()) ? null : username;
-        return auditLogRepository.findFiltered(usernameFilter, action, fromDt, toDt, pageable);
+        Specification<AuditLog> specification = Specification.where(null);
+        if (usernameFilter != null) {
+            String pattern = "%" + usernameFilter.toLowerCase(java.util.Locale.ROOT) + "%";
+            specification = specification.and((root, query, criteriaBuilder) ->
+                    criteriaBuilder.like(criteriaBuilder.lower(root.get("username")), pattern));
+        }
+        if (action != null) {
+            specification = specification.and((root, query, criteriaBuilder) ->
+                    criteriaBuilder.equal(root.get("action"), action));
+        }
+        if (fromDt != null) {
+            specification = specification.and((root, query, criteriaBuilder) ->
+                    criteriaBuilder.greaterThanOrEqualTo(root.get("createdAt"), fromDt));
+        }
+        if (toDt != null) {
+            specification = specification.and((root, query, criteriaBuilder) ->
+                    criteriaBuilder.lessThanOrEqualTo(root.get("createdAt"), toDt));
+        }
+        return auditLogRepository.findAll(specification, pageable);
     }
 
     private String getCurrentUsername() {

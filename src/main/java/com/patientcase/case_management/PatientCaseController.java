@@ -48,7 +48,17 @@ public class PatientCaseController {
                 "Case " + patientCase.getCaseNumber() + " created successfully.");
         return "redirect:/cases/" + patientCase.getId();
     }
+@GetMapping("/new")
+public String newCaseForm(@RequestParam Long patientId, Model model) {
+    CaseCreateRequest request = new CaseCreateRequest();
+    request.setPatientId(patientId);
 
+    model.addAttribute("caseForm", request);
+    model.addAttribute("caseStatuses", CaseStatus.values());
+    model.addAttribute("casePriorities", CasePriority.values());
+
+    return "cases/new";
+}
     @GetMapping("/{id}")
     public String viewCase(@PathVariable Long id, Model model) {
         PatientCase patientCase = caseService.findById(id);

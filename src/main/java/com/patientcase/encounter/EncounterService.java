@@ -8,6 +8,7 @@ import com.patientcase.case_management.CaseStatus;
 import com.patientcase.clinical.*;
 import com.patientcase.common.ResourceNotFoundException;
 import com.patientcase.user.User;
+import com.patientcase.user.Role;
 import com.patientcase.user.UserRepository;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -71,6 +72,9 @@ public class EncounterService {
 
         User clinician = userRepository.findById(request.getClinicianId())
                 .orElseThrow(() -> new ResourceNotFoundException("Clinician not found: " + request.getClinicianId()));
+        if (!clinician.isEnabled() || (clinician.getRole() != Role.DOCTOR && clinician.getRole() != Role.NURSE)) {
+            throw new IllegalArgumentException("Encounters may only be assigned to an active doctor or nurse.");
+        }
 
         Encounter encounter = new Encounter();
         encounter.setPatientCase(patientCase);
@@ -249,9 +253,23 @@ public class EncounterService {
     }
 
     @Transactional
+    public FollowUp updateFollowUpStatus(Long encounterId, Long followUpId, FollowUpStatus newStatus) {
+        FollowUp followUp = followUpRepository.findById(followUpId)
+                .orElseThrow(() -> new ResourceNotFoundException("Follow-up not found: " + followUpId));
+        if (!followUp.getEncounter().getId().equals(encounterId)) {
+            throw new ResourceNotFoundException("Follow-up not found for encounter: " + encounterId);
+        }
+        return updateFollowUpStatus(followUp, newStatus);
+    }
+
+    @Transactional
     public FollowUp updateFollowUpStatus(Long followUpId, FollowUpStatus newStatus) {
         FollowUp followUp = followUpRepository.findById(followUpId)
                 .orElseThrow(() -> new ResourceNotFoundException("Follow-up not found: " + followUpId));
+        return updateFollowUpStatus(followUp, newStatus);
+    }
+
+    private FollowUp updateFollowUpStatus(FollowUp followUp, FollowUpStatus newStatus) {
         if (followUp.getStatus() == FollowUpStatus.COMPLETED && newStatus != FollowUpStatus.COMPLETED) {
             throw new IllegalStateException("A completed follow-up cannot be changed.");
         }

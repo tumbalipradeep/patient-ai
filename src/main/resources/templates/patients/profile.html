@@ -102,17 +102,19 @@
                 <div class="card border-0 shadow-sm">
                     <div class="card-header bg-white py-3 d-flex justify-content-between">
                         <h6 class="fw-bold mb-0"><i class="bi bi-folder2 me-2 text-warning"></i>Cases</h6>
-                        <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#createCaseModal">
+                        <a th:href="@{/cases/new(patientId=${patient.id})}"
+                           class="btn btn-sm btn-outline-primary">
                             <i class="bi bi-plus-lg me-1"></i>New Case
-                        </button>
+                        </a>
                     </div>
                     <div class="card-body p-0">
                         <div th:if="${#lists.isEmpty(cases)}" class="text-center py-5 text-muted">
                             <i class="bi bi-folder-x fs-2 d-block mb-2"></i>
                             <p class="mb-3">No cases yet</p>
-                            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createCaseModal">
+                            <a th:href="@{/cases/new(patientId=${patient.id})}"
+                               class="btn btn-primary">
                                 Create First Case
-                            </button>
+                            </a>
                         </div>
                         <div class="table-responsive" th:unless="${#lists.isEmpty(cases)}">
                             <table class="table table-hover align-middle mb-0">

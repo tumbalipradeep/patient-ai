@@ -58,9 +58,18 @@ public class EncounterController {
             redirectAttributes.addFlashAttribute("errorMessage", "Please correct the form errors.");
             return "redirect:/cases/" + caseId;
         }
-        Encounter encounter = encounterService.createEncounter(request);
-        redirectAttributes.addFlashAttribute("successMessage", "Encounter created. Begin case-taking.");
-        return "redirect:/encounters/" + encounter.getId() + "/case-taking";
+        if (!caseId.equals(request.getCaseId())) {
+            redirectAttributes.addFlashAttribute("errorMessage", "The selected case does not match this request.");
+            return "redirect:/cases/" + caseId;
+        }
+        try {
+            Encounter encounter = encounterService.createEncounter(request);
+            redirectAttributes.addFlashAttribute("successMessage", "Encounter created. Begin case-taking.");
+            return "redirect:/encounters/" + encounter.getId() + "/case-taking";
+        } catch (IllegalArgumentException e) {
+            redirectAttributes.addFlashAttribute("errorMessage", e.getMessage());
+            return "redirect:/cases/" + caseId;
+        }
     }
 
     @GetMapping("/encounters/{id}")
@@ -153,7 +162,7 @@ public class EncounterController {
         try {
             com.patientcase.clinical.FollowUpStatus newStatus =
                     com.patientcase.clinical.FollowUpStatus.valueOf(status);
-            encounterService.updateFollowUpStatus(followUpId, newStatus);
+            encounterService.updateFollowUpStatus(encounterId, followUpId, newStatus);
             redirectAttributes.addFlashAttribute("successMessage", "Follow-up status updated.");
         } catch (IllegalArgumentException e) {
             redirectAttributes.addFlashAttribute("errorMessage", "Invalid status value.");

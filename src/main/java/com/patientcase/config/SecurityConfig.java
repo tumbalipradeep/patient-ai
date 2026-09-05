@@ -100,9 +100,7 @@ public class SecurityConfig {
                 .referrerPolicy(referrer ->
                     referrer.policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN))
             )
-            .csrf(csrf -> csrf
-                .ignoringRequestMatchers("/api/**")
-            )
+            .csrf(csrf -> {})
             .addFilterAfter(mustChangePasswordFilter(), UsernamePasswordAuthenticationFilter.class);
 
         return http.build();

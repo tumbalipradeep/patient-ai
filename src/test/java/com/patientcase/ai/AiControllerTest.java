@@ -113,11 +113,21 @@ class AiControllerTest {
     // ---- Authentication ----
 
     @Test
-    void chat_unauthenticated_isRedirectedToLogin() throws Exception {
+    void chat_unauthenticatedRequestWithCsrf_isRedirectedToLogin() throws Exception {
         mockMvc.perform(post("/api/ai/chat")
+                .with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(validRequestJson("Hello")))
                 .andExpect(status().is3xxRedirection());
+    }
+
+    @Test
+    void chat_missingCsrfToken_isForbiddenBeforeStateCanChange() throws Exception {
+        mockMvc.perform(post("/api/ai/chat")
+                .with(user(clinician.getUsername()).roles("DOCTOR"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(validRequestJson("Hello")))
+                .andExpect(status().isForbidden());
     }
 
     // ---- Valid authenticated request ----

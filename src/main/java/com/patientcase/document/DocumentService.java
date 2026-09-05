@@ -3,9 +3,12 @@ package com.patientcase.document;
 import com.patientcase.audit.AuditAction;
 import com.patientcase.audit.AuditService;
 import com.patientcase.case_management.PatientCaseRepository;
+import com.patientcase.case_management.PatientCase;
 import com.patientcase.common.ResourceNotFoundException;
 import com.patientcase.encounter.EncounterRepository;
+import com.patientcase.encounter.Encounter;
 import com.patientcase.patient.PatientRepository;
+import com.patientcase.patient.Patient;
 import com.patientcase.user.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -75,8 +78,8 @@ public class DocumentService {
      * Throws ResourceNotFoundException if the file no longer exists on disk.
      */
     public Path resolveDownloadPath(Document document) {
-        Path storageDir = Paths.get(storagePath);
-        Path target = Paths.get(document.getStorageReference()).normalize();
+        Path storageDir = Paths.get(storagePath).toAbsolutePath().normalize();
+        Path target = Paths.get(document.getStorageReference()).toAbsolutePath().normalize();
         if (!target.startsWith(storageDir)) {
             throw new IllegalArgumentException("Invalid storage reference");
         }
@@ -106,8 +109,16 @@ public class DocumentService {
                                     Long encounterId, String description, String uploaderUsername) throws IOException {
         validateFile(file);
 
+        Patient patient = patientId == null ? null : patientRepository.findById(patientId)
+                .orElseThrow(() -> new ResourceNotFoundException("Patient not found: " + patientId));
+        PatientCase patientCase = caseId == null ? null : caseRepository.findById(caseId)
+                .orElseThrow(() -> new ResourceNotFoundException("Case not found: " + caseId));
+        Encounter encounter = encounterId == null ? null : encounterRepository.findById(encounterId)
+                .orElseThrow(() -> new ResourceNotFoundException("Encounter not found: " + encounterId));
+        validateDocumentContext(patient, patientCase, encounter);
+
         String safeFilename = UUID.randomUUID() + "_" + sanitizeFilename(file.getOriginalFilename());
-        Path storageDir = Paths.get(storagePath);
+        Path storageDir = Paths.get(storagePath).toAbsolutePath().normalize();
 
         if (!Files.exists(storageDir)) {
             Files.createDirectories(storageDir);
@@ -129,15 +140,9 @@ public class DocumentService {
         document.setStorageReference(targetPath.toString());
         document.setDescription(description);
 
-        if (patientId != null) {
-            document.setPatient(patientRepository.findById(patientId).orElse(null));
-        }
-        if (caseId != null) {
-            document.setPatientCase(caseRepository.findById(caseId).orElse(null));
-        }
-        if (encounterId != null) {
-            document.setEncounter(encounterRepository.findById(encounterId).orElse(null));
-        }
+        document.setPatient(patient);
+        document.setPatientCase(patientCase);
+        document.setEncounter(encounter);
 
         userRepository.findByUsername(uploaderUsername).ifPresent(document::setUploadedBy);
 
@@ -156,6 +161,21 @@ public class DocumentService {
         }
         if (!ALLOWED_CONTENT_TYPES.contains(file.getContentType())) {
             throw new IllegalArgumentException("File type not allowed: " + file.getContentType());
+        }
+    }
+
+    private void validateDocumentContext(Patient patient, PatientCase patientCase, Encounter encounter) {
+        if (encounter != null) {
+            PatientCase encounterCase = encounter.getPatientCase();
+            if (patientCase != null && !encounterCase.getId().equals(patientCase.getId())) {
+                throw new IllegalArgumentException("The encounter does not belong to the selected case.");
+            }
+            if (patient != null && !encounterCase.getPatient().getId().equals(patient.getId())) {
+                throw new IllegalArgumentException("The encounter does not belong to the selected patient.");
+            }
+        }
+        if (patientCase != null && patient != null && !patientCase.getPatient().getId().equals(patient.getId())) {
+            throw new IllegalArgumentException("The case does not belong to the selected patient.");
         }
     }
 

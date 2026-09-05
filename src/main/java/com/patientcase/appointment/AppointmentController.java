@@ -59,9 +59,15 @@ public class AppointmentController {
             populateFormModel(model);
             return "appointments/new";
         }
-        appointmentService.createAppointment(request);
-        redirectAttributes.addFlashAttribute("successMessage", "Appointment scheduled successfully.");
-        return "redirect:/appointments";
+        try {
+            appointmentService.createAppointment(request);
+            redirectAttributes.addFlashAttribute("successMessage", "Appointment scheduled successfully.");
+            return "redirect:/appointments";
+        } catch (IllegalArgumentException e) {
+            model.addAttribute("errorMessage", e.getMessage());
+            populateFormModel(model);
+            return "appointments/new";
+        }
     }
 
     @GetMapping("/{id}/edit")
@@ -94,17 +100,29 @@ public class AppointmentController {
             populateFormModel(model);
             return "appointments/edit";
         }
-        appointmentService.updateAppointment(id, request);
-        redirectAttributes.addFlashAttribute("successMessage", "Appointment updated successfully.");
-        return "redirect:/appointments";
+        try {
+            appointmentService.updateAppointment(id, request);
+            redirectAttributes.addFlashAttribute("successMessage", "Appointment updated successfully.");
+            return "redirect:/appointments";
+        } catch (IllegalArgumentException e) {
+            model.addAttribute("appointment", appointmentService.findById(id));
+            model.addAttribute("statuses", AppointmentStatus.values());
+            model.addAttribute("errorMessage", e.getMessage());
+            populateFormModel(model);
+            return "appointments/edit";
+        }
     }
 
     @PostMapping("/{id}/status")
     public String updateStatus(@PathVariable Long id,
-                                @RequestParam AppointmentStatus status,
+                                @RequestParam String status,
                                 RedirectAttributes redirectAttributes) {
-        appointmentService.updateStatus(id, status);
-        redirectAttributes.addFlashAttribute("successMessage", "Appointment status updated.");
+        try {
+            appointmentService.updateStatus(id, AppointmentStatus.valueOf(status));
+            redirectAttributes.addFlashAttribute("successMessage", "Appointment status updated.");
+        } catch (IllegalArgumentException e) {
+            redirectAttributes.addFlashAttribute("errorMessage", "Invalid appointment status.");
+        }
         return "redirect:/appointments";
     }
 
