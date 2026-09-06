@@ -1,5 +1,6 @@
 package com.patientcase.kiosk;
 
+import com.patientcase.ai.AiDraftDto;
 import com.patientcase.case_management.CasePriority;
 import com.patientcase.case_management.PatientCase;
 import com.patientcase.case_management.PatientCaseRepository;
@@ -218,7 +219,89 @@ class KioskIntakeServiceTest {
                 .hasMessageContaining("email");
     }
 
+    // ── Guided intake (AI-off patient flow) ─────────────────────────────────
+
+    @Test
+    void saveGuidedDraft_withoutConsent_isRejected() {
+        KioskIntake intake = intakeService.getOrCreateActiveIntake(patient.getId(), patientUser.getId());
+
+        assertThatThrownBy(() -> intakeService.saveGuidedDraft(intake.getId(), patient.getId(), guidedForm()))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("consent");
+    }
+
+    @Test
+    void saveGuidedDraft_mapsFormIntoDraftReady() {
+        KioskIntake intake = intakeService.getOrCreateActiveIntake(patient.getId(), patientUser.getId());
+        var consent = consentService.grant(patient.getId(), patientUser.getId(),
+                "patient_intake", "medikiosk-1.0", "127.0.0.1");
+        intakeService.bindConsent(intake.getId(), patient.getId(), consent);
+
+        intakeService.saveGuidedDraft(intake.getId(), patient.getId(), guidedForm());
+
+        KioskIntake withDraft = intakeRepository.findById(intake.getId()).orElseThrow();
+        assertThat(withDraft.getStatus()).isEqualTo(KioskIntakeStatus.DRAFT_READY);
+        assertThat(withDraft.getConsent()).isNotNull();
+        assertThat(redFlagRepository.findByIntakeId(intake.getId())).isNotEmpty();
+
+        AiDraftDto draft = intakeService.getDraft(intake.getId(), patient.getId());
+        assertThat(draft.getChiefComplaint()).isEqualTo("Right knee pain");
+        assertThat(draft.getHistoryOfPresentIllness())
+                .contains("Duration: 3 days")
+                .contains("Pain while climbing stairs");
+        assertThat(draft.getRelevantHistory())
+                .contains("Past medical history: Diabetes")
+                .contains("Allergies: Penicillin");
+        assertThat(draft.getSymptoms()).extracting("name")
+                .contains("Right knee pain", "Nausea", "Fever");
+        assertThat(draft.getRedFlags()).contains("Chest pain or pressure");
+    }
+
+    @Test
+    void saveGuidedDraft_urgentSignal_createsUrgentCaseOnAccept() {
+        KioskIntake intake = intakeService.getOrCreateActiveIntake(patient.getId(), patientUser.getId());
+        var consent = consentService.grant(patient.getId(), patientUser.getId(),
+                "patient_intake", "medikiosk-1.0", "127.0.0.1");
+        intakeService.bindConsent(intake.getId(), patient.getId(), consent);
+
+        intakeService.saveGuidedDraft(intake.getId(), patient.getId(), guidedForm());
+        intakeService.submit(intake.getId(), patient.getId());
+
+        Encounter encounter = intakeService.acceptIntake(intake.getId(),
+                clinician.getUsername(), "Guided intake");
+        assertThat(encounter.getPatientCase().getPriority()).isEqualTo(CasePriority.URGENT);
+    }
+
+    @Test
+    void saveGuidedDraft_otherPatientsIntake_isDenied() {
+        KioskIntake intake = intakeService.getOrCreateActiveIntake(patient.getId(), patientUser.getId());
+
+        assertThatThrownBy(() -> intakeService.saveGuidedDraft(intake.getId(), otherPatient.getId(), guidedForm()))
+                .isInstanceOf(AccessDeniedException.class);
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private KioskIntakeService.GuidedIntakeForm guidedForm() {
+        KioskIntakeService.GuidedIntakeForm form = new KioskIntakeService.GuidedIntakeForm();
+        form.setChiefComplaint("Right knee pain");
+        form.setComplaintDetail("Worse in the mornings");
+        form.setSymptomOnset("GRADUAL");
+        form.setSymptomDuration("3 days");
+        form.setSymptomSeverity("MODERATE");
+        form.setHpi("Pain while climbing stairs");
+        form.setAggravating("Walking");
+        form.setRelieving("Rest");
+        form.setAssociatedSymptoms(new java.util.ArrayList<>(java.util.List.of("Nausea", "Fever")));
+        form.setPastMedicalHistory("Diabetes");
+        form.setCurrentMedications("Metformin 500mg");
+        form.setAllergies("Penicillin");
+        form.setFamilyHistory("None");
+        form.setHabits("Non-smoker");
+        form.setSafetySignals(new java.util.ArrayList<>(java.util.List.of("Chest pain or pressure", "High fever")));
+        form.setAdditionalNotes("Called ahead");
+        return form;
+    }
 
     private String validDraftJson() {
         return "{\"chiefComplaint\":\"Headache\",\"historyOfPresentIllness\":\"Since yesterday\","

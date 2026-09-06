@@ -69,6 +69,22 @@ public class KioskController {
     public static final String CONSENT_PURPOSE = "patient_intake";
     public static final String CONSENT_VERSION = "medikiosk-1.0";
 
+    @org.springframework.beans.factory.annotation.Value("${app.ai.enabled:false}")
+    private boolean aiEnabled;
+
+    private static final List<String> QUICK_CHIEF_COMPLAINTS = List.of(
+            "Pain", "Fever", "Cough / cold", "Headache", "Stomach or gut problem",
+            "Weakness or fatigue", "Skin problem", "Injury", "Dizziness", "Not sure");
+
+    private static final List<String> ASSOCIATED_SYMPTOM_OPTIONS = List.of(
+            "Nausea", "Vomiting", "Dizziness", "Loss of appetite",
+            "Sweating", "Fever", "Sleep problems", "Body ache");
+
+    private static final List<String> SAFETY_SIGNAL_OPTIONS = List.of(
+            "Chest pain or pressure", "Difficulty breathing", "Severe bleeding",
+            "Fainting or loss of consciousness", "Sudden weakness or numbness on one side",
+            "Sudden, severe headache (worst ever)", "High fever", "Vomiting blood");
+
     private final PatientRegistrationService registrationService;
     private final KioskIntakeService intakeService;
     private final ConsentService consentService;
@@ -206,7 +222,38 @@ public class KioskController {
                 || intake.getStatus() == KioskIntakeStatus.SUBMITTED
                 || intake.getStatus() == KioskIntakeStatus.ACCEPTED);
         model.addAttribute("consentGranted", intake.getConsent() != null);
+        model.addAttribute("aiEnabled", aiEnabled);
+        // Server-side conversation history so the AI panel survives refresh,
+        // back/forward and reconnects — the server is the source of truth.
+        model.addAttribute("aiHistory",
+                (aiEnabled && intake.getStatus() == KioskIntakeStatus.IN_PROGRESS)
+                        ? intakeService.getConversationMessages(id, patient.getId())
+                        : java.util.List.of());
+        model.addAttribute("quickChiefComplaints", QUICK_CHIEF_COMPLAINTS);
+        model.addAttribute("associatedSymptomOptions", ASSOCIATED_SYMPTOM_OPTIONS);
+        model.addAttribute("safetySignalOptions", SAFETY_SIGNAL_OPTIONS);
+        if (!model.containsAttribute("guidedForm")) {
+            model.addAttribute("guidedForm", new KioskIntakeService.GuidedIntakeForm());
+        }
         return "kiosk/intake";
+    }
+
+    @PostMapping("/intake/{id}/case")
+    public String saveGuidedCase(@PathVariable Long id,
+                                 @ModelAttribute("guidedForm") KioskIntakeService.GuidedIntakeForm form,
+                                 Authentication authentication,
+                                 RedirectAttributes redirectAttributes) {
+        Patient patient = currentPatient(authentication);
+        try {
+            intakeService.saveGuidedDraft(id, patient.getId(), form);
+            redirectAttributes.addFlashAttribute("successMessage",
+                    "Thank you. Your guided intake has been saved for review. " +
+                    "Please verify the summary below before submitting.");
+            return "redirect:/kiosk/intake/" + id + "/summary";
+        } catch (IllegalStateException e) {
+            redirectAttributes.addFlashAttribute("errorMessage", e.getMessage());
+            return "redirect:/kiosk/intake/" + id;
+        }
     }
 
     @GetMapping("/intake/{id}/summary")

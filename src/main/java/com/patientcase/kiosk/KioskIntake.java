@@ -68,6 +68,14 @@ public class KioskIntake {
     @Column(name = "summary_json", columnDefinition = "TEXT")
     private String summaryJson;
 
+    /** clientTurnId of the most recently processed AI conversation turn. */
+    @Column(name = "last_client_turn_id", length = 64)
+    private String lastClientTurnId;
+
+    /** Stored assistant reply for that turn — used to answer duplicate submits idempotently. */
+    @Column(name = "last_assistant_reply", columnDefinition = "TEXT")
+    private String lastAssistantReply;
+
     /** Username of the clinician who reviewed this intake. */
     @Column(name = "reviewed_by", length = 100)
     private String reviewedBy;
@@ -136,6 +144,12 @@ public class KioskIntake {
 
     public String getClinicianNotes() { return clinicianNotes; }
     public void setClinicianNotes(String clinicianNotes) { this.clinicianNotes = clinicianNotes; }
+
+    public String getLastClientTurnId() { return lastClientTurnId; }
+    public void setLastClientTurnId(String lastClientTurnId) { this.lastClientTurnId = lastClientTurnId; }
+
+    public String getLastAssistantReply() { return lastAssistantReply; }
+    public void setLastAssistantReply(String lastAssistantReply) { this.lastAssistantReply = lastAssistantReply; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }

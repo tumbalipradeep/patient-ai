@@ -8,7 +8,7 @@
     <div class="content-header d-flex justify-content-between align-items-center mb-4">
         <div>
             <h2 class="h4 fw-bold mb-0">
-                <i class="bi bi-robot me-2 text-primary"></i>Describe your symptoms
+                <i class="bi bi-robot me-2 text-primary"></i>Tell us why you're here
             </h2>
             <nav aria-label="breadcrumb">
                 <ol class="breadcrumb mb-0">
@@ -28,10 +28,11 @@
     <div class="alert alert-warning d-flex align-items-start gap-2 mb-4" role="alert">
         <i class="bi bi-exclamation-triangle-fill fs-5 flex-shrink-0 mt-1"></i>
         <div>
-            <strong>This assistant is not a doctor.</strong>
-            Everything you type is patient-reported and is always reviewed by a qualified
-            healthcare professional before any decision is made. If you are in an emergency,
-            call emergency services or go to your nearest emergency department.
+            <strong>This intake is not a diagnosis.</strong>
+            Everything you tell us is recorded exactly as you describe it and is always
+            reviewed by a qualified healthcare professional before any decision is made.
+            If you are in an emergency, call emergency services or go to your nearest
+            emergency department.
         </div>
     </div>
 
@@ -47,6 +48,7 @@
         <i class="bi bi-clipboard2-check-fill fs-5 flex-shrink-0"></i>
         <div class="flex-grow-1">
             <strong>Your intake summary is ready to review.</strong>
+            You can also edit your answers in the form below and save again.
         </div>
         <a th:href="@{/kiosk/intake/{id}/summary(id=${intake.id})}" class="btn btn-sm btn-success">
             Review summary <i class="bi bi-arrow-right"></i>
@@ -54,6 +56,7 @@
     </div>
 
     <div class="row g-4">
+        <!-- ── Left rail: progress + AI / mode card ─────────────────────── -->
         <div class="col-lg-3">
             <div class="card border-0 shadow-sm mb-3">
                 <div class="card-header bg-white py-2">
@@ -69,90 +72,240 @@
                     </dl>
                 </div>
             </div>
+
+            <!-- Progress -->
+            <div class="card border-0 shadow-sm mb-3">
+                <div class="card-header bg-white py-2">
+                    <h6 class="mb-0 fw-semibold"><i class="bi bi-list-ol me-1"></i>Progress</h6>
+                </div>
+                <div class="card-body">
+                    <div class="progress mb-2" style="height:8px;">
+                        <div id="guide-progress" class="progress-bar progress-bar-striped"
+                             role="progressbar" style="width:25%" aria-valuenow="25" aria-valuemin="0"
+                             aria-valuemax="100"></div>
+                    </div>
+                    <ol class="small text-muted mb-0 ps-3" id="guide-sections-list">
+                        <li data-guide-label="0">Reason for visit</li>
+                        <li data-guide-label="1">About your symptoms</li>
+                        <li data-guide-label="2">Your background</li>
+                        <li data-guide-label="3">Anything else &amp; review</li>
+                    </ol>
+                </div>
+            </div>
+
+            <!-- AI / mode card -->
             <div class="card border-0 shadow-sm">
                 <div class="card-header bg-white py-2">
                     <h6 class="mb-0 fw-semibold"><i class="bi bi-info-circle me-1"></i>How it works</h6>
                 </div>
                 <div class="card-body small text-muted">
-                    <p class="mb-2">Answer each question in your own words. You can also add
-                        <a th:href="@{/kiosk/intake/{id}/ayush(id=${intake.id})}">lifestyle details</a>
+                    <p class="mb-2">Answer the guided questions in any order — each section is
+                        saved together at the end. You can also
+                        <a th:href="@{/kiosk/intake/{id}/ayush(id=${intake.id})}">add lifestyle details</a>
                         and <a th:href="@{/kiosk/intake/{id}/documents(id=${intake.id})}">upload reports</a>.</p>
-                    <p class="mb-0">Once enough information is collected, a summary is shown for
-                        your review and then sent to a physician.</p>
+                    <p class="mb-0">Once you finish, a summary is shown for your review and then
+                        sent to a physician. Nothing is submitted until you confirm it.</p>
                 </div>
             </div>
         </div>
 
+        <!-- ── Guided questionnaire ──────────────────────────────────────── -->
         <div class="col-lg-9">
-            <div class="card border-0 shadow-sm d-flex flex-column" style="height:65vh;">
+            <div class="card border-0 shadow-sm">
                 <div class="card-header bg-white py-2 d-flex justify-content-between align-items-center">
                     <h6 class="mb-0 fw-semibold">
-                        <i class="bi bi-chat-dots me-1 text-primary"></i>Conversation
+                        <i class="bi bi-ui-checks me-1 text-primary"></i>Guided intake
                     </h6>
-                    <button id="btn-clear" class="btn btn-outline-secondary btn-sm" type="button">
-                        <i class="bi bi-trash me-1"></i>Clear
-                    </button>
+                    <span class="text-muted small" id="guide-step-label">Section 1 of 4</span>
                 </div>
 
-                <div id="chat-messages" class="flex-grow-1 overflow-auto p-3"
-                     style="background:#f8f9fa;" role="log" aria-live="polite" aria-label="Conversation">
-                    <div class="d-flex mb-3">
-                        <div class="flex-shrink-0 me-2">
-                            <span class="avatar-sm bg-primary rounded-circle d-flex align-items-center
-                                         justify-content-center" style="width:32px;height:32px;">
-                                <i class="bi bi-robot text-white" style="font-size:0.85rem;"></i>
-                            </span>
-                        </div>
-                        <div>
-                            <div class="bg-white border rounded-3 px-3 py-2 shadow-sm" style="max-width:520px;">
-                                <p class="mb-0 small">
-                                    Hello <span th:text="${patient.firstName}">there</span>. I'll ask
-                                    you a few questions to help prepare your case.
-                                    To start, please tell me:
-                                    <strong>what brings you in today?</strong>
-                                </p>
+                <form th:action="@{/kiosk/intake/{id}/case(id=${intake.id})}" method="post"
+                      th:object="${guidedForm}" id="guided-form" novalidate>
+                    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+
+                    <!-- SECTION 1 · Reason for visit -->
+                    <section class="guide-section p-4" data-guide-index="0">
+                        <h5 class="fw-bold mb-1">What brings you in today?</h5>
+                        <p class="text-muted small mb-3">Tap the closest option, or write your own.</p>
+
+                        <fieldset class="row g-2 mb-3">
+                            <legend class="visually-hidden">Chief complaint quick choices</legend>
+                            <div th:each="choice : ${quickChiefComplaints}"
+                                 class="col-6 col-md-4 col-lg-3">
+                                <button type="button" class="btn btn-outline-primary w-100 chip-single"
+                                        data-target="chiefComplaint" th:text="${choice}">choice</button>
                             </div>
-                            <div class="text-muted mt-1" style="font-size:0.7rem;">AI Assistant</div>
+                        </fieldset>
+
+                        <div class="mb-3">
+                            <label for="chiefComplaint" class="form-label fw-semibold">Describe your main concern</label>
+                            <input type="text" id="chiefComplaint" th:field="*{chiefComplaint}"
+                                   class="form-control form-control-lg" maxlength="2000"
+                                   placeholder="e.g. Fever since last night, or pain in my right knee"/>
+                            <div class="form-text">Please be as specific as you can — this is what the
+                                physician reads first.</div>
                         </div>
-                    </div>
-                </div>
 
-                <div id="chat-loading" class="px-3 py-2 d-none" aria-hidden="true">
-                    <div class="d-flex align-items-center gap-2 text-muted small">
-                        <div class="spinner-border spinner-border-sm text-primary" role="status">
-                            <span class="visually-hidden">AI is responding…</span>
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label for="symptomOnset" class="form-label fw-semibold">Did it start suddenly or gradually?</label>
+                                <select id="symptomOnset" th:field="*{symptomOnset}" class="form-select form-select-lg">
+                                    <option value="">Choose…</option>
+                                    <option value="SUDDEN">Suddenly</option>
+                                    <option value="GRADUAL">Gradually</option>
+                                    <option value="UNKNOWN">Not sure</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="symptomDuration" class="form-label fw-semibold">How long has it been going on?</label>
+                                <input type="text" id="symptomDuration" th:field="*{symptomDuration}"
+                                       class="form-control form-control-lg" maxlength="100"
+                                       placeholder="e.g. 3 days, 2 weeks, 3 months"/>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="symptomSeverity" class="form-label fw-semibold">How severe is it right now?</label>
+                                <select id="symptomSeverity" th:field="*{symptomSeverity}" class="form-select form-select-lg">
+                                    <option value="">Choose…</option>
+                                    <option value="SEVERE">Severe</option>
+                                    <option value="MODERATE">Moderate</option>
+                                    <option value="MILD">Mild</option>
+                                </select>
+                            </div>
                         </div>
-                        <span>AI is thinking…</span>
-                    </div>
-                </div>
+                    </section>
 
-                <div id="chat-error" class="alert alert-danger alert-dismissible mx-3 mb-0 d-none" role="alert">
-                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
-                    <span id="chat-error-text"></span>
-                    <button type="button" class="btn-close" aria-label="Close"
-                            onclick="document.getElementById('chat-error').classList.add('d-none')">
-                    </button>
-                </div>
+                    <!-- SECTION 2 · HPI -->
+                    <section class="guide-section p-4 d-none" data-guide-index="1">
+                        <h5 class="fw-bold mb-1">Tell us more about it</h5>
+                        <p class="text-muted small mb-3">These details help the physician follow
+                            how your symptoms are behaving.</p>
 
-                <div class="card-footer bg-white border-top p-3">
-                    <div class="d-flex gap-2">
-                        <label for="chat-input" class="visually-hidden">Your message</label>
-                        <textarea id="chat-input" class="form-control" rows="2" maxlength="4000"
-                                  placeholder="Type your response here…" aria-label="Your message"></textarea>
-                        <button id="btn-send" class="btn btn-primary px-4 align-self-end" type="button">
-                            <i class="bi bi-send-fill me-1"></i>Send
+                        <div class="mb-3">
+                            <label for="hpi" class="form-label fw-semibold">Describe what you're feeling</label>
+                            <textarea id="hpi" th:field="*{hpi}" rows="3" class="form-control"
+                                      maxlength="5000"
+                                      placeholder="What does it feel like? When did it first start? Is it constant or does it come and go?"></textarea>
+                        </div>
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                <label for="aggravating" class="form-label fw-semibold">What makes it worse?</label>
+                                <input type="text" id="aggravating" th:field="*{aggravating}"
+                                       class="form-control" maxlength="500"
+                                       placeholder="e.g. after eating, while walking"/>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="relieving" class="form-label fw-semibold">What makes it better?</label>
+                                <input type="text" id="relieving" th:field="*{relieving}"
+                                       class="form-control" maxlength="500"
+                                       placeholder="e.g. rest, warm compress"/>
+                            </div>
+                        </div>
+
+                        <div class="mb-1 fw-semibold">Any of these along with it? <span class="text-muted small fw-normal">(tap all that apply)</span></div>
+                        <fieldset class="row g-2 mb-3">
+                            <legend class="visually-hidden">Associated symptoms quick choices</legend>
+                            <div th:each="choice : ${associatedSymptomOptions}"
+                                 class="col-6 col-md-4 col-lg-3">
+                                <button type="button" class="btn btn-outline-primary w-100 chip-multi"
+                                        data-target="associatedSymptoms" th:text="${choice}">choice</button>
+                            </div>
+                        </fieldset>
+                        <div class="d-none">
+                            <input type="checkbox" th:each="choice : ${associatedSymptomOptions}"
+                                   th:field="*{associatedSymptoms}" th:value="${choice}" th:attr="data-name=${choice}"/>
+                        </div>
+                    </section>
+
+                    <!-- SECTION 3 · Relevant history -->
+                    <section class="guide-section p-4 d-none" data-guide-index="2">
+                        <h5 class="fw-bold mb-1">Your background</h5>
+                        <p class="text-muted small mb-3">Answer what you can — leave the rest blank.</p>
+
+                        <div class="mb-3">
+                            <label for="pastMedicalHistory" class="form-label fw-semibold">Past or ongoing health conditions</label>
+                            <textarea id="pastMedicalHistory" th:field="*{pastMedicalHistory}" rows="2"
+                                      class="form-control" maxlength="5000"
+                                      placeholder="e.g. high blood pressure, diabetes, asthma"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label for="currentMedications" class="form-label fw-semibold">Medicines you are currently taking</label>
+                            <textarea id="currentMedications" th:field="*{currentMedications}" rows="2"
+                                      class="form-control" maxlength="5000"
+                                      placeholder="e.g. tablet name and dose if you know it"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label for="allergies" class="form-label fw-semibold">Known allergies</label>
+                            <textarea id="allergies" th:field="*{allergies}" rows="2"
+                                      class="form-control" maxlength="2000"
+                                      placeholder="e.g. penicillin, peanuts"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label for="familyHistory" class="form-label fw-semibold">Family history (for example, in parents or siblings)</label>
+                            <textarea id="familyHistory" th:field="*{familyHistory}" rows="2"
+                                      class="form-control" maxlength="2000"
+                                      placeholder="e.g. heart disease, diabetes"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label for="habits" class="form-label fw-semibold">Lifestyle habits (smoking, tobacco, alcohol, exercise)</label>
+                            <textarea id="habits" th:field="*{habits}" rows="2"
+                                      class="form-control" maxlength="2000"
+                                      placeholder="e.g. non-smoker, walks daily"></textarea>
+                        </div>
+                    </section>
+
+                    <!-- SECTION 4 · Safety signals + review -->
+                    <section class="guide-section p-4 d-none" data-guide-index="3">
+                        <h5 class="fw-bold mb-1">Anything urgent we should know?</h5>
+                        <p class="text-muted small mb-3">
+                            These notes are added for the physician. They are not a diagnosis and are
+                            treated as safety observations for the care team.
+                        </p>
+
+                        <div class="row g-2 mb-3">
+                            <div th:each="choice : ${safetySignalOptions}"
+                                 class="col-6 col-md-4 col-lg-3">
+                                <button type="button" class="btn btn-outline-danger w-100 chip-multi"
+                                        data-target="safetySignals" th:text="${choice}">choice</button>
+                            </div>
+                        </div>
+                        <div class="d-none">
+                            <input type="checkbox" th:each="choice : ${safetySignalOptions}"
+                                   th:field="*{safetySignals}" th:value="${choice}" th:attr="data-name=${choice}"/>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="additionalNotes" class="form-label fw-semibold">Anything else you'd like the physician to know?</label>
+                            <textarea id="additionalNotes" th:field="*{additionalNotes}" rows="3"
+                                      class="form-control" maxlength="2000"></textarea>
+                        </div>
+
+                        <hr/>
+                        <p class="small text-muted mb-2">
+                            <i class="bi bi-info-circle me-1"></i>
+                            When you save, you'll see a summary of everything above. You can review it,
+                            edit it, add lifestyle details and upload reports — before you submit it
+                            to the physician.
+                        </p>
+                    </section>
+
+                    <!-- Nav buttons -->
+                    <div class="card-footer bg-white border-top p-3 d-flex justify-content-between">
+                        <button type="button" id="guide-prev" class="btn btn-outline-secondary">
+                            <i class="bi bi-arrow-left me-1"></i>Previous
                         </button>
+                        <div class="d-flex gap-2">
+                            <button type="button" id="guide-next" class="btn btn-primary">
+                                Next <i class="bi bi-arrow-right ms-1"></i>
+                            </button>
+                            <button type="submit" id="guide-submit" class="btn btn-success d-none">
+                                <i class="bi bi-clipboard2-check me-1"></i>Save &amp; review summary
+                            </button>
+                        </div>
                     </div>
-                    <div class="d-flex justify-content-between mt-1">
-                        <span class="text-muted" style="font-size:0.7rem;">
-                            Press <kbd>Ctrl</kbd>+<kbd>Enter</kbd> to send
-                        </span>
-                        <span id="char-count" class="text-muted" style="font-size:0.7rem;">0 / 4000</span>
-                    </div>
-                </div>
+                </form>
             </div>
 
-            <!-- Draft complete actions -->
+            <!-- ── Draft complete actions ────────────────────────────────── -->
             <div id="ai-complete-card" class="card border-0 shadow-sm mt-3 d-none">
                 <div class="card-header bg-success text-white py-2">
                     <h6 class="mb-0 fw-semibold">
@@ -161,8 +314,8 @@
                 </div>
                 <div class="card-body">
                     <p class="small text-muted mb-3">
-                        The AI has gathered enough information. Review your summary, optionally add
-                        lifestyle details and documents, then submit for physician review.
+                        Your information is ready. Review your summary, optionally add lifestyle
+                        details and documents, then submit for physician review.
                     </p>
                     <div class="d-flex flex-wrap gap-2">
                         <a id="summary-link" th:href="@{/kiosk/intake/{id}/summary(id=${intake.id})}"
@@ -180,6 +333,159 @@
                     </div>
                 </div>
             </div>
+
+            <!-- ── MediKiosk Clinical History Assistant (only when AI enabled) ──── -->
+            <div th:if="${aiEnabled}" id="ai-panel" class="card border-0 shadow-sm mt-3">
+                <div class="card-header bg-white py-2 d-flex justify-content-between
+                             align-items-center gap-2 flex-wrap">
+                    <h6 class="mb-0 fw-semibold">
+                        <i class="bi bi-robot me-1 text-primary"></i>MediKiosk Clinical History Assistant
+                    </h6>
+                    <button id="btn-reset" class="btn btn-outline-secondary btn-sm" type="button">
+                        <i class="bi bi-arrow-counterclockwise me-1"></i>Start over
+                    </button>
+                </div>
+
+                <div class="card-body pt-2 pb-0">
+                    <!-- Section + intake progress -->
+                    <div class="d-flex align-items-center justify-content-between mb-1">
+                        <span id="ai-section-label" class="small fw-semibold text-primary">
+                            About your visit
+                        </span>
+                        <span id="ai-section-value" class="small text-muted">0%</span>
+                    </div>
+                    <div class="progress mb-2" style="height:6px;" role="progressbar"
+                         aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"
+                         aria-label="Intake progress">
+                        <div id="ai-progress-bar" class="progress-bar progress-bar-striped"
+                             style="width:0%"></div>
+                    </div>
+
+                    <div id="chat-messages" class="flex-grow-1 overflow-auto p-3 border rounded mb-2"
+                         style="max-height:300px;background:#f8f9fa;" role="log" aria-live="polite"
+                         aria-label="Clinical history conversation">
+                        <!-- Server-rendered history (source of truth) — survives refresh/back-forward -->
+                        <th:block th:each="m : ${aiHistory}">
+                            <div class="d-flex mb-3" th:classappend="${m.role == 'user'} ? 'flex-row-reverse'">
+                                <div class="flex-shrink-0 me-2"
+                                     th:classappend="${m.role == 'user'} ? 'ms-2 me-0' : ''">
+                                    <span class="avatar-sm bg-primary rounded-circle d-flex align-items-center
+                                                 justify-content-center"
+                                          style="width:32px;height:32px;">
+                                        <i class="bi bi-robot text-white" style="font-size:0.85rem;"></i>
+                                    </span>
+                                </div>
+                                <div>
+                                    <div class="bg-white border rounded-3 px-3 py-2 shadow-sm"
+                                         style="max-width:520px;">
+                                        <p class="mb-0" style="white-space:pre-wrap;"
+                                           th:text="${m.content}"></p>
+                                    </div>
+                                    <div class="text-muted mt-1" style="font-size:0.7rem;">
+                                        <span th:text="${m.role == 'user'} ? 'You' : 'MediKiosk Assistant'"></span>
+                                    </div>
+                                </div>
+                            </div>
+                        </th:block>
+
+                        <!-- Greeting shown only when there is no server history yet -->
+                        <div th:unless="${aiHistory != null && !aiHistory.isEmpty()}"
+                             class="d-flex mb-3">
+                            <div class="flex-shrink-0 me-2">
+                                <span class="avatar-sm bg-primary rounded-circle d-flex align-items-center
+                                             justify-content-center"
+                                      style="width:32px;height:32px;">
+                                    <i class="bi bi-robot text-white" style="font-size:0.85rem;"></i>
+                                </span>
+                            </div>
+                            <div>
+                                <div class="bg-white border rounded-3 px-3 py-2 shadow-sm"
+                                     style="max-width:520px;">
+                                    <p class="mb-0">
+                                        Hello <span th:text="${patient.firstName}">there</span>.
+                                        I'll ask you a few questions one at a time to help prepare your
+                                        case. To start, please tell me:
+                                        <strong>what brings you in today?</strong>
+                                    </p>
+                                </div>
+                                <div class="text-muted mt-1" style="font-size:0.7rem;">MediKiosk Assistant</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Quick-answer chips for structured questions -->
+                    <div id="chat-chips" class="d-flex flex-wrap gap-2 mb-2" role="group"
+                         aria-label="Quick answers"></div>
+
+                    <!-- Patient-reported facts / inferred notes -->
+                    <div id="facts-panel" class="mt-2 mb-1 d-none">
+                        <div class="small fw-semibold text-success">
+                            <i class="bi bi-check2-circle me-1"></i>What you've told us so far
+                        </div>
+                        <ul id="facts-body" class="small text-muted mb-0 ps-3"></ul>
+                    </div>
+                    <div id="inferred-panel" class="mt-2 mb-1 d-none">
+                        <div class="small fw-semibold text-warning">
+                            <i class="bi bi-question-circle me-1"></i>
+                            The assistant noted the following — please confirm if it's correct
+                        </div>
+                        <ul id="inferred-body" class="small text-muted mb-0 ps-3"></ul>
+                    </div>
+
+                    <div id="chat-loading" class="px-3 py-2 d-none" aria-hidden="true">
+                        <div class="d-flex align-items-center gap-2 text-muted small">
+                            <div class="spinner-border spinner-border-sm text-primary" role="status">
+                                <span class="visually-hidden">MediKiosk is responding…</span>
+                            </div>
+                            <span>MediKiosk Assistant is thinking…</span>
+                        </div>
+                    </div>
+                    <div id="chat-error" class="alert alert-danger mt-2 d-none" role="alert">
+                        <div class="d-flex align-items-start gap-2">
+                            <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                            <div class="flex-grow-1">
+                                <span id="chat-error-text"></span>
+                                <div class="mt-2 d-flex flex-wrap gap-2">
+                                    <button id="btn-retry" class="btn btn-danger btn-sm d-none"
+                                            type="button">
+                                        <i class="bi bi-arrow-clockwise me-1"></i>Retry
+                                    </button>
+                                    <span class="small text-muted align-self-center">
+                                        You can also use the guided questions above instead.
+                                    </span>
+                                </div>
+                            </div>
+                            <button id="chat-error-close" type="button"
+                                    class="btn-close" aria-label="Dismiss error"></button>
+                        </div>
+                    </div>
+
+                    <div class="d-flex gap-2 align-items-end">
+                        <div class="flex-grow-1">
+                            <label for="chat-input" class="visually-hidden">Your answer</label>
+                            <textarea id="chat-input" class="form-control" rows="3" maxlength="4000"
+                                      placeholder="Type your answer here…"
+                                      aria-label="Your answer"
+                                      autocomplete="off"></textarea>
+                            <div id="char-count" class="form-text mt-1 small">0 / 4000</div>
+                        </div>
+                        <button id="btn-send" class="btn btn-primary px-4" type="button">
+                            <i class="bi bi-send-fill me-1"></i>Send
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- AI-off professional notice -->
+            <div th:unless="${aiEnabled}" class="card border-0 shadow-sm mt-3 bg-info-subtle">
+                <div class="card-body small">
+                    <i class="bi bi-info-circle-fill text-primary me-2"></i>
+                    The conversational assistant is not available in this deployment.
+                    Please use the guided questions above — your answers are sent to a qualified
+                    healthcare professional for review. If you are in an emergency, call
+                    emergency services or go to your nearest emergency department.
+                </div>
+            </div>
         </div>
     </div>
 </main>
@@ -193,6 +499,7 @@
               data-consent=${consentGranted ?: false}"
      style="display:none;" aria-hidden="true"></div>
 
-<script th:src="@{/js/kiosk-intake.js}"></script>
+<script th:src="@{/js/kiosk-guided.js}"></script>
+<script th:if="${aiEnabled}" th:src="@{/js/kiosk-intake.js}"></script>
 </body>
 </html>

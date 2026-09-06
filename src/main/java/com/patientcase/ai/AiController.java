@@ -25,8 +25,9 @@ import java.util.List;
  * - Never returns the AI API key, provider details, or stack traces to the caller.
  * - Never logs patient conversation content.
  *
- * CSRF: /api/** is exempt from CSRF in SecurityConfig; the header token is included
- * defensively by the client anyway.
+ * CSRF: Spring CSRF applies globally (SecurityConfig does not exempt /api/**). The
+ * client must send the CSRF token in the X-CSRF-TOKEN header, which the bundled
+ * ai-intake.js does using the token emitted by head.html.
  */
 @RestController
 @RequestMapping("/api/ai")

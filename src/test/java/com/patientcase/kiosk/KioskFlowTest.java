@@ -380,6 +380,105 @@ class KioskFlowTest {
                 .andExpect(status().isNotFound());
     }
 
+    // ── Guided intake (AI-off primary flow) ──────────────────────────────────
+
+    @Test
+    void intakePage_aiDisabled_rendersGuidedWizardWithoutChat() throws Exception {
+        // app.ai.enabled defaults to false in the test profile.
+        createPatient();
+        mockMvc.perform(get("/kiosk/intake/{id}", intake.getId())
+                        .with(user(patientUser.getUsername()).roles("PATIENT")))
+                .andExpect(status().isOk())
+                .andExpect(view().name("kiosk/intake"))
+                .andExpect(content().string(containsString("Guided intake")))
+                .andExpect(content().string(containsString("guided questions above")))
+                .andExpect(content().string(containsString("What brings you in today?")))
+                .andExpect(model().attribute("aiEnabled", false));
+    }
+
+    @Test
+    void guidedCasePost_savesDraftReadyAndRedirectsToSummary() throws Exception {
+        createPatientWithConsentedIntake();
+        mockMvc.perform(post("/kiosk/intake/{id}/case", intake.getId())
+                        .with(user(patientUser.getUsername()).roles("PATIENT"))
+                        .with(csrf())
+                        .param("chiefComplaint", "Right knee pain")
+                        .param("complaintDetail", "Worse in the mornings")
+                        .param("symptomOnset", "GRADUAL")
+                        .param("symptomDuration", "3 days")
+                        .param("symptomSeverity", "MODERATE")
+                        .param("hpi", "Pain while climbing stairs")
+                        .param("aggravating", "Walking")
+                        .param("relieving", "Rest")
+                        .param("associatedSymptoms", "Nausea")
+                        .param("associatedSymptoms", "Fever")
+                        .param("pastMedicalHistory", "Diabetes")
+                        .param("currentMedications", "Metformin 500mg")
+                        .param("allergies", "Penicillin")
+                        .param("familyHistory", "None")
+                        .param("habits", "Non-smoker")
+                        .param("safetySignals", "Chest pain or pressure")
+                        .param("safetySignals", "High fever")
+                        .param("additionalNotes", "Called ahead"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/kiosk/intake/" + intake.getId() + "/summary"));
+
+        KioskIntake stored = intakeService.requireOwnedIntake(intake.getId(), patient.getId());
+        org.junit.jupiter.api.Assertions.assertEquals(KioskIntakeStatus.DRAFT_READY, stored.getStatus());
+        org.junit.jupiter.api.Assertions.assertTrue(stored.getDraftJson().contains("Right knee pain"));
+        org.junit.jupiter.api.Assertions.assertTrue(stored.getDraftJson().contains("Chest pain or pressure"));
+    }
+
+    @Test
+    void guidedCasePost_withoutConsent_redirectsBackWithError() throws Exception {
+        createPatient();
+        mockMvc.perform(post("/kiosk/intake/{id}/case", intake.getId())
+                        .with(user(patientUser.getUsername()).roles("PATIENT"))
+                        .with(csrf())
+                        .param("chiefComplaint", "Fever"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/kiosk/intake/" + intake.getId()))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .flash().attribute("errorMessage",
+                                org.hamcrest.Matchers.containsString("consent")));
+    }
+
+    @Test
+    void guidedCasePost_nonOwnedIntake_isForbidden() throws Exception {
+        createPatientWithConsentedIntake();
+        User otherUser = saveUser("kiosk.flowcase", Role.PATIENT);
+        Patient otherPatient = savePatient("P-FLOW-03", otherUser);
+        KioskIntake foreignIntake =
+                intakeService.getOrCreateActiveIntake(otherPatient.getId(), otherUser.getId());
+
+        mockMvc.perform(post("/kiosk/intake/{id}/case", foreignIntake.getId())
+                        .with(user(patientUser.getUsername()).roles("PATIENT"))
+                        .with(csrf())
+                        .param("chiefComplaint", "Fever"))
+                .andExpect(status().isForbidden());
+    }
+
+    // ── Receptionist role gating (F3–F5) ──────────────────────────────────────
+
+    @Test
+    void dashboard_asReceptionist_hidesEncounterManagement() throws Exception {
+        mockMvc.perform(get("/dashboard").with(user("rec.one").roles("RECEPTIONIST")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Appointments")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("/encounters/"))));
+    }
+
+    @Test
+    void profile_asReceptionist_hidesCaseManagementUi() throws Exception {
+        User u = saveUser("rec.patient", Role.RECEPTIONIST);
+        Patient p = savePatient("P-FLOW-04", u);
+        mockMvc.perform(get("/patients/{id}", p.getId()).with(user("rec.view").roles("RECEPTIONIST")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString(p.getFullName())))
+                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("/cases/new"))))
+                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("createCaseModal"))));
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private void createPatient() {

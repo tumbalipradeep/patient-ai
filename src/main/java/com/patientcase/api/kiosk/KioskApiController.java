@@ -104,6 +104,23 @@ public class KioskApiController {
                     .body(AiChatResponse.error("Message must not be empty."));
         }
 
+        // ---- Idempotency: a duplicate submit of the last turn is answered from
+        // ---- the server's own record — no provider call, no double append.
+        String clientTurnId = request.getClientTurnId();
+        if (intakeService.isKnownTurn(request.getIntakeId(), patient.getId(), clientTurnId)) {
+            String stored = intakeService.storedReplyForTurn(
+                    request.getIntakeId(), patient.getId(), clientTurnId);
+            if (stored != null && !stored.isBlank()) {
+                AiChatResponse dup = AiChatResponse.reply(stored);
+                // If the recorded turn transitioned the intake out of IN_PROGRESS
+                // (draft saved), surface draft-ready so the client moves on.
+                if (intake.getStatus() != KioskIntakeStatus.IN_PROGRESS) {
+                    dup.withDraftReady();
+                }
+                return ResponseEntity.ok(dup);
+            }
+        }
+
         // ---- Official history from server; add a context hint like the clinician flow ----
         List<AiChatRequest.Message> serverHistory =
                 intakeService.getConversationHistory(request.getIntakeId(), patient.getId());
@@ -117,9 +134,12 @@ public class KioskApiController {
 
         // ---- Persist conversation turn ----
         String assistantReply = response.getReply();
+        if (assistantReply == null || assistantReply.isBlank()) {
+            return ResponseEntity.ok(response);
+        }
         try {
-            intakeService.appendMessages(request.getIntakeId(), patient.getId(),
-                    userMessage, assistantReply);
+            intakeService.recordTurn(request.getIntakeId(), patient.getId(),
+                    clientTurnId, userMessage, assistantReply);
         } catch (Exception e) {
             log.warn("Failed to persist kiosk chat messages for intake {}: {}",
                     request.getIntakeId(), e.getClass().getSimpleName());
@@ -146,6 +166,66 @@ public class KioskApiController {
         }
 
         return ResponseEntity.ok(response);
+    }
+
+    /**
+     * POST /api/kiosk/chat/reset — "Start over" for the AI conversation.
+     *
+     * Clears the server-side conversation history (so it cannot be desynced from
+     * the browser) for an intake that is still IN_PROGRESS and consented. No
+     * persisted draft is touched. Ownership, consent and state are enforced
+     * server-side exactly as for a chat turn.
+     */
+    @PostMapping("/chat/reset")
+    public ResponseEntity<AiChatResponse> reset(
+            @Valid @RequestBody KioskResetRequest request,
+            Authentication authentication) {
+
+        if (authentication == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(AiChatResponse.error("Please sign in to continue."));
+        }
+
+        User user = userRepository.findByUsername(authentication.getName()).orElse(null);
+        if (user == null) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(AiChatResponse.error("Account not found."));
+        }
+        Patient patient;
+        try {
+            patient = intakeService.requirePatientForUser(user.getId());
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(AiChatResponse.error("No patient record is linked to this account."));
+        }
+
+        KioskIntake intake;
+        try {
+            intake = intakeService.requireOwnedIntake(request.getIntakeId(), patient.getId());
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(AiChatResponse.error("Intake not found."));
+        }
+        if (intake.getStatus() != KioskIntakeStatus.IN_PROGRESS) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(AiChatResponse.error(
+                            "This intake is no longer accepting responses."));
+        }
+        if (intake.getConsent() == null) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(AiChatResponse.error(
+                            "Consent must be granted before starting the intake."));
+        }
+
+        try {
+            intakeService.resetConversation(request.getIntakeId(), patient.getId());
+        } catch (Exception e) {
+            log.warn("Failed to reset kiosk conversation for intake {}: {}",
+                    request.getIntakeId(), e.getClass().getSimpleName());
+            return ResponseEntity.ok(AiChatResponse.error(
+                    "Could not start over. Please refresh the page and try again."));
+        }
+        return ResponseEntity.ok(AiChatResponse.reply("Ready to start over."));
     }
 
     /**

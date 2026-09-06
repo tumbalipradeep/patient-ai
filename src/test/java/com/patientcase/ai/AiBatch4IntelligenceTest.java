@@ -134,6 +134,139 @@ class AiBatch4IntelligenceTest {
     }
 
     // =========================================================================
+    // Conversational UX enrichment (chips, section, progress, facts/inferred)
+    // =========================================================================
+
+    @Test
+    void parseReply_conversationalTurn_populatesChatUxFields() {
+        String json = """
+            {
+              "complete": false,
+              "nextQuestion": "How long have you had the cough?",
+              "patientReportedFacts": ["Cough for 2 weeks"],
+              "inferredInformation": [],
+              "missingInformation": ["duration", "severity"],
+              "section": "HPI",
+              "sectionProgress": 40,
+              "suggestedAnswers": ["1 day", "2-3 days", "More than a week", "Not sure"],
+              "allowsOtherText": true,
+              "redFlags": [],
+              "urgentFlag": false
+            }
+            """;
+        AiChatResponse response = service.testableParseReply(json);
+
+        assertThat(response.isComplete()).isFalse();
+        assertThat(response.getReply()).isEqualTo("How long have you had the cough?");
+        assertThat(response.getPatientReportedFacts()).containsExactly("Cough for 2 weeks");
+        assertThat(response.getSuggestedAnswers())
+                .containsExactly("1 day", "2-3 days", "More than a week", "Not sure");
+        assertThat(response.getSection()).isEqualTo("HPI");
+        assertThat(response.getSectionProgress()).isEqualTo(40);
+        assertThat(response.getAllowOtherText()).isTrue();
+        assertThat(response.getInferredInformation()).isNull();
+    }
+
+    @Test
+    void parseReply_unknownSection_isNormalisedToOther() {
+        String json = """
+            {
+              "complete": false,
+              "nextQuestion": "Any family history of this?",
+              "patientReportedFacts": [],
+              "inferredInformation": [],
+              "missingInformation": ["family history"],
+              "section": "MYTHICAL_SECTION",
+              "sectionProgress": 55,
+              "suggestedAnswers": [],
+              "redFlags": [],
+              "urgentFlag": false
+            }
+            """;
+        AiChatResponse response = service.testableParseReply(json);
+
+        // Unknown tokens never reach the browser — the UI only ever sees a known value
+        assertThat(response.getSection()).isEqualTo("OTHER");
+    }
+
+    @Test
+    void parseReply_suggestedAnswers_areBoundedAndTruncated() {
+        String longAnswer = "a".repeat(200);
+        String json = """
+            {
+              "complete": false,
+              "nextQuestion": "How severe?",
+              "patientReportedFacts": [],
+              "inferredInformation": [],
+              "missingInformation": ["severity"],
+              "suggestedAnswers": ["0", "1", "2", "3", "4", "PLEASE_DROP_ME", "%s"],
+              "allowsOtherText": false,
+              "redFlags": [],
+              "urgentFlag": false
+            }
+            """.formatted(longAnswer);
+        AiChatResponse response = service.testableParseReply(json);
+
+        // At most 4 chips, each truncated to 60 chars; blanks dropped
+        assertThat(response.getSuggestedAnswers()).hasSize(4);
+        assertThat(response.getSuggestedAnswers())
+                .doesNotContain("PLEASE_DROP_ME");
+        assertThat(response.getSuggestedAnswers()).allSatisfy(a ->
+                assertThat(a.length()).isLessThanOrEqualTo(60));
+        assertThat(response.getAllowOtherText()).isFalse();
+    }
+
+    @Test
+    void parseReply_completeTurn_finalProgressHundredAllowOtherFalse() {
+        String json = """
+            {
+              "complete": true,
+              "nextQuestion": null,
+              "patientReportedFacts": ["Cough for 2 weeks"],
+              "inferredInformation": [],
+              "missingInformation": [],
+              "section": "HPI",
+              "sectionProgress": 100,
+              "suggestedAnswers": [],
+              "allowsOtherText": false,
+              "redFlags": [],
+              "urgentFlag": false,
+              "completionMessage": "Summary ready.",
+              "draft": {
+                "chiefComplaint": "Cough",
+                "symptoms": []
+              }
+            }
+            """;
+        AiChatResponse response = service.testableParseReply(json);
+
+        assertThat(response.isComplete()).isTrue();
+        assertThat(response.getReply()).isEqualTo("Summary ready.");
+        assertThat(response.getSectionProgress()).isEqualTo(100);
+        assertThat(response.getAllowOtherText()).isFalse();
+        assertThat(response.getStructuredData()).contains("Cough");
+    }
+
+    @Test
+    void parseReply_progressOutOfRange_isClamped() {
+        String json = """
+            {
+              "complete": false,
+              "nextQuestion": "Question?",
+              "patientReportedFacts": [],
+              "inferredInformation": [],
+              "missingInformation": ["x"],
+              "sectionProgress": 350,
+              "redFlags": [],
+              "urgentFlag": false
+            }
+            """;
+        AiChatResponse response = service.testableParseReply(json);
+
+        assertThat(response.getSectionProgress()).isEqualTo(100);
+    }
+
+    // =========================================================================
     // Fact / inference / unknown separation
     // =========================================================================
 

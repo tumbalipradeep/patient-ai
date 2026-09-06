@@ -1,5 +1,6 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security" lang="en">
 <head th:replace="~{fragments/head :: head('Bad Request')}"></head>
 <body class="login-body">
 <div class="d-flex align-items-center justify-content-center min-vh-100">
@@ -12,8 +13,14 @@
         <p class="text-muted mb-4" th:text="${errorMessage} ?: 'The request was invalid. Please check your input and try again.'">
             The request was invalid. Please check your input and try again.
         </p>
-        <a th:href="@{/dashboard}" class="btn btn-primary">
+        <a th:href="@{/dashboard}" sec:authorize="isAuthenticated() and !hasRole('PATIENT')" class="btn btn-primary">
             <i class="bi bi-house me-1"></i>Back to Dashboard
+        </a>
+        <a th:href="@{/kiosk/home}" sec:authorize="hasRole('PATIENT')" class="btn btn-primary">
+            <i class="bi bi-house me-1"></i>Back to Kiosk Home
+        </a>
+        <a th:href="@{/login}" sec:authorize="!isAuthenticated()" class="btn btn-primary">
+            <i class="bi bi-box-arrow-in-right me-1"></i>Go to Login
         </a>
     </div>
 </div>

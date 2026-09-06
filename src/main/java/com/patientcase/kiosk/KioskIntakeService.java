@@ -6,6 +6,7 @@ import com.patientcase.ai.AiChatRequest;
 import com.patientcase.ai.AiDraftDto;
 import com.patientcase.ai.AiDraftValidator;
 import com.patientcase.ai.AiSymptomDraft;
+import com.patientcase.ai.DraftFieldConfidence;
 import com.patientcase.audit.AuditAction;
 import com.patientcase.audit.AuditService;
 import com.patientcase.case_management.CasePriority;
@@ -174,6 +175,101 @@ public class KioskIntakeService {
         intakeRepository.save(intake);
     }
 
+    /**
+     * Record one conversation turn and remember the client's turn id so a
+     * duplicate submit of the same turn can be answered from the stored reply
+     * without calling the AI provider or double-appending the history.
+     *
+     * @return true if this turn was newly recorded, false if it was a duplicate
+     *         of the last recorded turn (and was therefore ignored).
+     */
+    @Transactional
+    public boolean recordTurn(Long intakeId, Long patientId, String clientTurnId,
+                              String userMessage, String assistantReply) {
+        KioskIntake intake = requireOwnedIntake(intakeId, patientId);
+        if (intake.getStatus() != KioskIntakeStatus.IN_PROGRESS) {
+            throw new IllegalStateException("This intake is not accepting new responses.");
+        }
+
+        if (clientTurnId != null && !clientTurnId.isBlank()
+                && clientTurnId.equals(intake.getLastClientTurnId())) {
+            // Duplicate submit of the most recent turn — nothing new to record.
+            return false;
+        }
+
+        List<MessageEntry> messages = deserialiseMessages(intake.getMessagesJson());
+        if (userMessage != null && !userMessage.isBlank()) {
+            messages.add(new MessageEntry("user", userMessage));
+        }
+        if (assistantReply != null && !assistantReply.isBlank()) {
+            messages.add(new MessageEntry("assistant", assistantReply));
+        }
+        intake.setMessagesJson(serialise(messages));
+        intake.setLastClientTurnId(clientTurnId);
+        intake.setLastAssistantReply(assistantReply);
+        intakeRepository.save(intake);
+        return true;
+    }
+
+    /**
+     * Answer a duplicate submit of the most recently processed turn from the
+     * server's own record. Returns the stored reply, or null when there is
+     * nothing stored for this turn id.
+     */
+    @Transactional(readOnly = true)
+    public String storedReplyForTurn(Long intakeId, Long patientId, String clientTurnId) {
+        if (clientTurnId == null || clientTurnId.isBlank()) return null;
+        KioskIntake intake = requireOwnedIntake(intakeId, patientId);
+        if (clientTurnId.equals(intake.getLastClientTurnId())) {
+            return intake.getLastAssistantReply();
+        }
+        return null;
+    }
+
+    /**
+     * True when the given client turn id matches the server's record of the
+     * most recently processed turn — used to avoid re-invoking the provider.
+     */
+    @Transactional(readOnly = true)
+    public boolean isKnownTurn(Long intakeId, Long patientId, String clientTurnId) {
+        if (clientTurnId == null || clientTurnId.isBlank()) return false;
+        KioskIntake intake = requireOwnedIntake(intakeId, patientId);
+        return clientTurnId.equals(intake.getLastClientTurnId());
+    }
+
+    /**
+     * "Start over" for the conversational intake: clears the server-side
+     * conversation history (and the remembered turn id) so the patient can run
+     * the interview again from scratch. Only allowed while the intake is still
+     * IN_PROGRESS and consent has been granted; any previously persisted draft
+     * is intentionally left untouched so it cannot be destroyed by mistake.
+     */
+    @Transactional
+    public KioskIntake resetConversation(Long intakeId, Long patientId) {
+        KioskIntake intake = requireOwnedIntake(intakeId, patientId);
+        if (intake.getStatus() != KioskIntakeStatus.IN_PROGRESS) {
+            throw new IllegalStateException(
+                    "Only an in-progress intake can be reset (current: " + intake.getStatus() + ").");
+        }
+        if (intake.getConsent() == null) {
+            throw new IllegalStateException("Consent must be granted before starting the intake.");
+        }
+        intake.setMessagesJson("[]");
+        intake.setLastClientTurnId(null);
+        intake.setLastAssistantReply(null);
+        return intakeRepository.save(intake);
+    }
+
+    /**
+     * Read the stored conversation history as message entries, for rendering
+     * the conversation on the server-rendered intake page (refresh-safe).
+     */
+    @Transactional(readOnly = true)
+    public List<MessageEntry> getConversationMessages(Long intakeId, Long patientId) {
+        KioskIntake intake = requireOwnedIntake(intakeId, patientId);
+        return deserialiseMessages(intake.getMessagesJson());
+    }
+
     @Transactional(readOnly = true)
     public List<AiChatRequest.Message> getConversationHistory(Long intakeId, Long patientId) {
         KioskIntake intake = requireOwnedIntake(intakeId, patientId);
@@ -223,6 +319,112 @@ public class KioskIntakeService {
         return validator.deserialise(intakeRepository.findById(intakeId)
                 .map(KioskIntake::getDraftJson)
                 .orElse(null));
+    }
+
+    /**
+     * Persist a draft built from the guided, structured kiosk questionnaire.
+     *
+     * Alternative workflow used when the AI assistant is disabled/unavailable:
+     * the patient answers guided sections (chief complaint, HPI, background,
+     * safety signals) and the answers are assembled into the SAME validated
+     * AiDraftDto that the AI conversation produces, keeping the downstream
+     * review/accept pipeline identical.
+     *
+     * @return the intake now in DRAFT_READY state
+     */
+    @Transactional
+    public KioskIntake saveGuidedDraft(Long intakeId, Long patientId, GuidedIntakeForm form) {
+        KioskIntake intake = requireOwnedIntake(intakeId, patientId);
+        if (intake.getConsent() == null) {
+            throw new IllegalStateException("Patient consent must be granted before submitting an intake.");
+        }
+        AiDraftDto draft = buildGuidedDraft(form);
+        String structuredJson = validator.serialise(draft);
+        boolean urgent = form != null && form.hasUrgentSignals();
+        saveDraft(intakeId, patientId, structuredJson, urgent);
+        return intake;
+    }
+
+    /**
+     * Assemble a patient-reported {@link AiDraftDto} from the guided questionnaire
+     * answers. Only what the patient typed/selected is included — nothing is
+     * inferred or invented. Narrative fields are concatenated from the guided
+     * sub-fields so the clinician review page reads a coherent history.
+     */
+    AiDraftDto buildGuidedDraft(GuidedIntakeForm form) {
+        AiDraftDto draft = new AiDraftDto();
+        if (form == null) {
+            return draft;
+        }
+        draft.setChiefComplaint(form.getChiefComplaint());
+
+        List<String> hpiParts = new ArrayList<>();
+        if (notBlank(form.getSymptomOnset())) {
+            hpiParts.add("Onset: " + form.getSymptomOnset().toLowerCase() + " onset.");
+        }
+        if (notBlank(form.getSymptomDuration())) {
+            hpiParts.add("Duration: " + form.getSymptomDuration() + ".");
+        }
+        if (notBlank(form.getHpi())) {
+            hpiParts.add(form.getHpi());
+        }
+        if (notBlank(form.getAggravating())) {
+            hpiParts.add("Makes it worse: " + form.getAggravating() + ".");
+        }
+        if (notBlank(form.getRelieving())) {
+            hpiParts.add("Relieves it: " + form.getRelieving() + ".");
+        }
+        if (notBlank(form.getAdditionalNotes())) {
+            hpiParts.add("Additional: " + form.getAdditionalNotes() + ".");
+        }
+        draft.setHistoryOfPresentIllness(String.join(" ", hpiParts));
+
+        List<String> historyParts = new ArrayList<>();
+        if (notBlank(form.getPastMedicalHistory())) {
+            historyParts.add("Past medical history: " + form.getPastMedicalHistory() + ".");
+        }
+        if (notBlank(form.getCurrentMedications())) {
+            historyParts.add("Current medications: " + form.getCurrentMedications() + ".");
+        }
+        if (notBlank(form.getAllergies())) {
+            historyParts.add("Allergies: " + form.getAllergies() + ".");
+        }
+        if (notBlank(form.getFamilyHistory())) {
+            historyParts.add("Family history: " + form.getFamilyHistory() + ".");
+        }
+        if (notBlank(form.getHabits())) {
+            historyParts.add("Lifestyle: " + form.getHabits() + ".");
+        }
+        draft.setRelevantHistory(String.join(" ", historyParts));
+
+        List<AiSymptomDraft> symptoms = new ArrayList<>();
+        if (notBlank(form.getChiefComplaint())) {
+            AiSymptomDraft primary = new AiSymptomDraft();
+            primary.setName(form.getChiefComplaint());
+            primary.setDuration(form.getSymptomDuration());
+            primary.setSeverity(form.getSymptomSeverity());
+            primary.setOnset(form.getSymptomOnset());
+            primary.setNotes(notBlank(form.getComplaintDetail()) ? form.getComplaintDetail() : null);
+            primary.setConfidence(DraftFieldConfidence.PATIENT_REPORTED);
+            symptoms.add(primary);
+        }
+        if (form.getAssociatedSymptoms() != null) {
+            for (String name : form.getAssociatedSymptoms()) {
+                if (notBlank(name)) {
+                    AiSymptomDraft assoc = new AiSymptomDraft();
+                    assoc.setName(name);
+                    assoc.setConfidence(DraftFieldConfidence.PATIENT_REPORTED);
+                    symptoms.add(assoc);
+                }
+            }
+        }
+        draft.setSymptoms(symptoms);
+        draft.setRedFlags(form.getSafetySignals() != null ? new ArrayList<>(form.getSafetySignals()) : new ArrayList<>());
+        return draft;
+    }
+
+    private boolean notBlank(String value) {
+        return value != null && !value.isBlank();
     }
 
     // ---- AYUSH ----
@@ -555,5 +757,86 @@ public class KioskIntakeService {
         public void setRole(String role) { this.role = role; }
         public String getContent() { return content; }
         public void setContent(String content) { this.content = content; }
+    }
+
+    /**
+     * Guided, structured kiosk questionnaire — the alternative intake workflow
+     * that works without an AI provider. All fields are patient-reported.
+     *
+     * "safetySignals" carries neutral patient-safety observations the patient
+     * explicitly selected (red flags for the clinician). "hasUrgentSignals"
+     * marks potentially-urgent combinations for triage, matching the AI flow's
+     * urgentFlag semantics.
+     */
+    public static class GuidedIntakeForm {
+        private String chiefComplaint;
+        private String complaintDetail;
+        private String symptomDuration;
+        private String symptomOnset;
+        private String symptomSeverity;
+        private String hpi;
+        private String aggravating;
+        private String relieving;
+        private List<String> associatedSymptoms = new ArrayList<>();
+        private String pastMedicalHistory;
+        private String currentMedications;
+        private String allergies;
+        private String familyHistory;
+        private String habits;
+        private List<String> safetySignals = new ArrayList<>();
+        private String additionalNotes;
+
+        private static final java.util.Set<String> URGENT_SIGNALS = java.util.Set.of(
+                "Chest pain or pressure",
+                "Difficulty breathing",
+                "Severe bleeding",
+                "Fainting or loss of consciousness",
+                "Sudden weakness or numbness on one side",
+                "Sudden, severe headache (worst ever)");
+
+        public boolean hasUrgentSignals() {
+            if (safetySignals == null) return false;
+            for (String signal : safetySignals) {
+                if (URGENT_SIGNALS.contains(signal)) return true;
+            }
+            return false;
+        }
+
+        public String getChiefComplaint() { return chiefComplaint; }
+        public void setChiefComplaint(String chiefComplaint) { this.chiefComplaint = chiefComplaint; }
+        public String getComplaintDetail() { return complaintDetail; }
+        public void setComplaintDetail(String complaintDetail) { this.complaintDetail = complaintDetail; }
+        public String getSymptomDuration() { return symptomDuration; }
+        public void setSymptomDuration(String symptomDuration) { this.symptomDuration = symptomDuration; }
+        public String getSymptomOnset() { return symptomOnset; }
+        public void setSymptomOnset(String symptomOnset) { this.symptomOnset = symptomOnset; }
+        public String getSymptomSeverity() { return symptomSeverity; }
+        public void setSymptomSeverity(String symptomSeverity) { this.symptomSeverity = symptomSeverity; }
+        public String getHpi() { return hpi; }
+        public void setHpi(String hpi) { this.hpi = hpi; }
+        public String getAggravating() { return aggravating; }
+        public void setAggravating(String aggravating) { this.aggravating = aggravating; }
+        public String getRelieving() { return relieving; }
+        public void setRelieving(String relieving) { this.relieving = relieving; }
+        public List<String> getAssociatedSymptoms() { return associatedSymptoms; }
+        public void setAssociatedSymptoms(List<String> associatedSymptoms) {
+            this.associatedSymptoms = associatedSymptoms != null ? associatedSymptoms : new ArrayList<>();
+        }
+        public String getPastMedicalHistory() { return pastMedicalHistory; }
+        public void setPastMedicalHistory(String pastMedicalHistory) { this.pastMedicalHistory = pastMedicalHistory; }
+        public String getCurrentMedications() { return currentMedications; }
+        public void setCurrentMedications(String currentMedications) { this.currentMedications = currentMedications; }
+        public String getAllergies() { return allergies; }
+        public void setAllergies(String allergies) { this.allergies = allergies; }
+        public String getFamilyHistory() { return familyHistory; }
+        public void setFamilyHistory(String familyHistory) { this.familyHistory = familyHistory; }
+        public String getHabits() { return habits; }
+        public void setHabits(String habits) { this.habits = habits; }
+        public List<String> getSafetySignals() { return safetySignals; }
+        public void setSafetySignals(List<String> safetySignals) {
+            this.safetySignals = safetySignals != null ? safetySignals : new ArrayList<>();
+        }
+        public String getAdditionalNotes() { return additionalNotes; }
+        public void setAdditionalNotes(String additionalNotes) { this.additionalNotes = additionalNotes; }
     }
 }

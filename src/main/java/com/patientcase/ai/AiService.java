@@ -31,7 +31,7 @@ import java.util.Map;
  * Security guarantees:
  * - API key is never logged, never returned to the browser.
  * - Patient messages are not logged (only structural metadata).
- * - Disabled gracefully when AI_ENABLED=false or AI_API_KEY is blank.
+ * - Disabled gracefully when AI is not configured by the care center.
  */
 @Service
 public class AiService implements AiChatService {
@@ -50,6 +50,15 @@ public class AiService implements AiChatService {
 
     @Value("${app.ai.enabled:false}")
     private boolean enabled;
+
+    // Sections the assistant may declare a question to belong to; anything else
+    // from the model is normalised to OTHER so the UI only ever sees known tokens.
+    private static final java.util.Set<String> KNOWN_SECTIONS = java.util.Set.of(
+            "CHIEF_COMPLAINT", "HPI", "PAST_HISTORY", "MEDICATIONS",
+            "ALLERGIES", "LIFESTYLE", "SAFETY", "OTHER");
+
+    private static final int MAX_SUGGESTED_ANSWERS = 4;
+    private static final int MAX_SUGGESTED_ANSWER_LENGTH = 60;
 
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
@@ -95,13 +104,34 @@ No markdown. No explanation outside the JSON. The JSON must be one of:
 1. CONVERSATIONAL TURN (still collecting information):
 {
   "complete": false,
-  "nextQuestion": "The single question to ask the patient next.",
+  "nextQuestion": "The single friendly question to ask the patient next.",
   "patientReportedFacts": ["fact1", "fact2"],
-  "inferredInformation": ["inference1"],
+  "inferredInformation": [],
   "missingInformation": ["area1", "area2"],
+  "section": "HPI",
+  "sectionProgress": 40,
+  "suggestedAnswers": ["1 day", "2-3 days", "Not sure"],
+  "allowsOtherText": true,
   "redFlags": [],
   "urgentFlag": false
 }
+
+SECTION GUIDANCE:
+- "section" must be one of: CHIEF_COMPLAINT, HPI, PAST_HISTORY, MEDICATIONS, \
+  ALLERGIES, LIFESTYLE, SAFETY, OTHER. Pick the section the current question \
+  explores. Default to OTHER if none fits.
+- "sectionProgress" is your honest estimate (0-100) of how much of the clinical \
+  history relevant to this complaint has now been covered.
+- "suggestedAnswers" (optional, max 4, each under 60 characters) contains \
+  plain patient-friendly short answers that make this question easy for a \
+  tap interface. Use them ONLY when the question is naturally a choice \
+  (duration, frequency, yes/no, severity 0-10). Leave as [] when free text \
+  is truly needed.
+- "allowsOtherText": true unless a free-text answer would be clinically \
+  meaningless for this question.
+- "inferredInformation" must stay [] unless you derived a non-clinical \
+  observation from the patient's own words that they should explicitly \
+  confirm. Never put invented clinical facts here.
 
 2. FINAL TURN (enough information collected):
 {
@@ -110,6 +140,10 @@ No markdown. No explanation outside the JSON. The JSON must be one of:
   "patientReportedFacts": ["fact1", "fact2"],
   "inferredInformation": [],
   "missingInformation": [],
+  "section": "HPI",
+  "sectionProgress": 100,
+  "suggestedAnswers": [],
+  "allowsOtherText": false,
   "redFlags": [],
   "urgentFlag": false,
   "completionMessage": "Summary sentence shown to the patient.",
@@ -165,12 +199,14 @@ STRICT RULES FOR FINAL DRAFT:
             return parseReply(rawReply);
         } catch (RestClientException e) {
             log.warn("AI provider request failed: {}", e.getClass().getSimpleName());
+            // Transient provider/timeout failure — the client should offer a retry.
             return AiChatResponse.error(
-                    "AI service is temporarily unavailable. Please try again or proceed with manual case-taking.");
+                    "The AI assistant is temporarily unavailable. Please try again " +
+                    "or continue with the guided questions below.").retryable();
         } catch (Exception e) {
             log.warn("Unexpected error during AI chat: {}", e.getClass().getSimpleName());
             return AiChatResponse.error(
-                    "An unexpected error occurred. Please proceed with manual case-taking.");
+                    "An unexpected error occurred. Please proceed with the guided questions below.");
         }
     }
 
@@ -274,6 +310,14 @@ STRICT RULES FOR FINAL DRAFT:
         List<String> redFlags = turn.redFlags != null ? turn.redFlags : new ArrayList<>();
         boolean urgent = Boolean.TRUE.equals(turn.urgentFlag);
 
+        // Conversational UX metadata shared by both turn types
+        List<String> facts = turn.patientReportedFacts != null ? turn.patientReportedFacts : new ArrayList<>();
+        List<String> inferred = turn.inferredInformation != null ? turn.inferredInformation : new ArrayList<>();
+        List<String> suggestions = sanitiseSuggestions(turn.suggestedAnswers);
+        boolean allowOther = turn.allowsOtherText == null || Boolean.TRUE.equals(turn.allowsOtherText);
+        String section = sanitiseSection(turn.section);
+        Integer progress = clampProgress(turn.sectionProgress);
+
         if (Boolean.TRUE.equals(turn.complete) && turn.draft != null) {
             // Embed red flags into the draft payload so they persist alongside the draft
             turn.draft.redFlags = redFlags;
@@ -284,7 +328,9 @@ STRICT RULES FOR FINAL DRAFT:
                         ? turn.completionMessage
                         : "I have gathered enough information to prepare a preliminary draft for clinician review.";
                 return AiChatResponse.complete(humanMsg, draftJson)
-                        .withRedFlags(redFlags, urgent);
+                        .withRedFlags(redFlags, urgent)
+                        .withConversation(facts, inferred, suggestions, allowOther, section,
+                                progress != null ? progress : 100);
             } catch (Exception e) {
                 log.warn("Failed to serialise AI draft: {}", e.getClass().getSimpleName());
                 return AiChatResponse.error(
@@ -304,7 +350,41 @@ STRICT RULES FOR FINAL DRAFT:
                     "AI response was incomplete. Please try again or proceed manually.");
         }
 
-        return AiChatResponse.reply(question).withRedFlags(redFlags, urgent);
+        return AiChatResponse.reply(question)
+                .withRedFlags(redFlags, urgent)
+                .withConversation(facts, inferred, suggestions, allowOther, section, progress);
+    }
+
+    /**
+     * Keep only safe, bounded suggested answers: at most MAX_SUGGESTED_ANSWERS,
+     * non-blank, truncated to MAX_SUGGESTED_ANSWER_LENGTH chars.
+     */
+    private List<String> sanitiseSuggestions(List<String> raw) {
+        if (raw == null || raw.isEmpty()) return null;
+        List<String> clean = new ArrayList<>();
+        for (String answer : raw) {
+            if (answer == null || answer.isBlank()) continue;
+            String stripped = answer.strip();
+            if (stripped.length() > MAX_SUGGESTED_ANSWER_LENGTH) {
+                stripped = stripped.substring(0, MAX_SUGGESTED_ANSWER_LENGTH);
+            }
+            clean.add(stripped);
+            if (clean.size() >= MAX_SUGGESTED_ANSWERS) break;
+        }
+        return clean.isEmpty() ? null : clean;
+    }
+
+    /** Normalise a model-declared section token; unknown values become OTHER. */
+    private String sanitiseSection(String raw) {
+        if (raw == null || raw.isBlank()) return "OTHER";
+        String upper = raw.strip().toUpperCase();
+        return KNOWN_SECTIONS.contains(upper) ? upper : "OTHER";
+    }
+
+    /** Clamp the model's progress estimate to 0–100; null if the model did not supply one. */
+    private Integer clampProgress(Integer raw) {
+        if (raw == null) return null;
+        return Math.max(0, Math.min(100, raw));
     }
 
     // ---- Package-private test hook ----
@@ -345,6 +425,10 @@ STRICT RULES FOR FINAL DRAFT:
         public List<String> redFlags;
         public Boolean urgentFlag;
         public String completionMessage;
+        public String section;
+        public Integer sectionProgress;
+        public List<String> suggestedAnswers;
+        public Boolean allowsOtherText;
         public DraftPayload draft;
     }
 
