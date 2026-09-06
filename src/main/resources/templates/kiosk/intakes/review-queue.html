@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security" lang="en">
+<head th:replace="~{fragments/head :: head('Intake Review')}"></head>
+<body class="app-body">
+<div class="app-layout">
+    <div th:replace="~{fragments/sidebar :: sidebar}"></div>
+    <main class="main-content">
+
+        <div class="content-header d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h2 class="h4 mb-0 fw-bold"><i class="bi bi-inboxes text-primary me-2"></i>Intake Review</h2>
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb mb-0">
+                        <li class="breadcrumb-item active">Patient self-service submissions</li>
+                    </ol>
+                </nav>
+            </div>
+        </div>
+
+        <div th:replace="~{fragments/alerts :: alerts}"></div>
+
+        <div class="card border-0 shadow-sm">
+            <div class="card-body p-0">
+                <div th:if="${#lists.isEmpty(queueItems)}" class="text-center py-5 text-muted">
+                    <i class="bi bi-inbox fs-2 d-block mb-2"></i>
+                    <p class="mb-0">No pending intakes. New patient submissions will appear here.</p>
+                </div>
+                <div class="table-responsive" th:unless="${#lists.isEmpty(queueItems)}">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>Intake</th>
+                                <th>Patient</th>
+                                <th>Chief complaint</th>
+                                <th>Flags</th>
+                                <th>Submitted</th>
+                                <th class="text-end">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr th:each="item : ${queueItems}">
+                                <td>
+                                    <span class="fw-semibold">#<span th:text="${item.intake.id}">1</span></span>
+                                </td>
+                                <td>
+                                    <span class="fw-semibold" th:text="${item.intake.patient.fullName}">Patient</span>
+                                    <small class="text-muted d-block" th:text="${item.intake.patient.patientNumber}">P-000000</small>
+                                </td>
+                                <td th:text="${item.chiefComplaint ?: '—'}">complaint</td>
+                                <td>
+                                    <span class="badge bg-danger"
+                                          th:if="${item.urgent}">
+                                        <i class="bi bi-exclamation-triangle-fill me-1"></i>Urgent
+                                    </span>
+                                    <span class="badge bg-warning text-dark"
+                                          th:if="${item.flagCount > 0 and !item.urgent}">
+                                        <i class="bi bi-exclamation-triangle me-1"></i><span th:text="${item.flagCount}">0</span> flag(s)
+                                    </span>
+                                    <span class="text-muted small" th:if="${item.flagCount == 0}">None</span>
+                                </td>
+                                <td>
+                                    <small class="text-muted"
+                                           th:text="${#temporals.format(item.intake.createdAt, 'dd MMM yyyy HH:mm')}">date</small>
+                                </td>
+                                <td class="text-end">
+                                    <a th:href="@{/intakes/{id}(id=${item.intake.id})}"
+                                       class="btn btn-sm btn-primary">
+                                        <i class="bi bi-search me-1"></i>Review
+                                    </a>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+    </main>
+</div>
+<div th:replace="~{fragments/footer :: footer}"></div>
+</body>
+</html>

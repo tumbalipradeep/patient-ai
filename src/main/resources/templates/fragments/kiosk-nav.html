@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<nav th:fragment="kiosk-nav" class="navbar navbar-dark bg-primary shadow-sm px-3" aria-label="Patient portal">
+    <div class="d-flex align-items-center">
+        <span class="navbar-brand d-flex align-items-center mb-0 me-4">
+            <i class="bi bi-heart-pulse-fill fs-4 me-2"></i>
+            <span class="fw-bold">MediKiosk</span>
+        </span>
+        <a th:href="@{/kiosk/home}" class="nav-link text-white me-2">
+            <i class="bi bi-house-door me-1"></i>Home
+        </a>
+        <a th:href="@{/kiosk/consent}" class="nav-link text-white me-2">
+            <i class="bi bi-plus-circle me-1"></i>Start Intake
+        </a>
+    </div>
+    <form th:action="@{/logout}" method="post" class="m-0">
+        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+        <button type="submit" class="btn btn-outline-light btn-sm">
+            <i class="bi bi-box-arrow-right me-1"></i>Sign out
+        </button>
+    </form>
+</nav>
+</body>
+</html>

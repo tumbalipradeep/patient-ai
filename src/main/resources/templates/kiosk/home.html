@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{fragments/head :: head('My Health Portal')}"></head>
+<body class="app-body bg-light">
+<div th:replace="~{fragments/kiosk-nav :: kiosk-nav}"></div>
+
+<main class="container py-4">
+    <div class="content-header d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="h4 mb-0 fw-bold">Welcome, <span th:text="${patient.firstName}">Patient</span></h2>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0">
+                    <li class="breadcrumb-item active">My Health Portal</li>
+                </ol>
+            </nav>
+        </div>
+    </div>
+
+    <div th:replace="~{fragments/alerts :: alerts}"></div>
+
+    <!-- ── Active intake progress ─────────────────────────────────────── -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+            <div class="d-flex flex-wrap justify-content-between align-items-center">
+                <div>
+                    <p class="text-muted small mb-1 fw-semibold text-uppercase">Current visit intake</p>
+                    <h5 class="fw-bold mb-0">
+                        <span th:switch="${activeIntake.status.name()}">
+                            <span th:case="'IN_PROGRESS'" class="text-primary">
+                                In progress — <span th:text="${activeIntake.status.name()}">status</span>
+                            </span>
+                            <span th:case="'DRAFT_READY'" class="text-success">
+                                Draft ready for your review
+                            </span>
+                            <span th:case="'SUBMITTED'" class="text-warning">
+                                Submitted — awaiting physician review
+                            </span>
+                            <span th:case="'ACCEPTED'" class="text-success">
+                                Accepted by your care team
+                            </span>
+                            <span th:case="'REJECTED'" class="text-danger">
+                                Returned for more information
+                            </span>
+                        </span>
+                    </h5>
+                    <p class="text-muted small mb-0">
+                        Consent:
+                        <th:block th:if="${activeIntake.consent != null}">
+                            <i class="bi bi-check-circle-fill text-success"></i> Granted
+                        </th:block>
+                        <th:block th:if="${activeIntake.consent == null}">
+                            <i class="bi bi-x-circle text-danger"></i> Not yet granted
+                        </th:block>
+                    </p>
+                </div>
+                <div class="mt-3 mt-md-0">
+                    <a th:href="@{/kiosk/consent}" class="btn btn-primary">
+                        <i class="bi bi-stars me-1"></i> Start / Continue intake
+                    </a>
+                    <a th:href="@{/kiosk/intake/{id}/documents(id=${activeIntake.id})}"
+                       class="btn btn-outline-primary">
+                        <i class="bi bi-upload me-1"></i> Documents
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── How it works ──────────────────────────────────────────────── -->
+    <div class="row g-4 mb-4">
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body text-center">
+                    <i class="bi bi-shield-lock text-primary fs-2 d-block mb-2"></i>
+                    <h6 class="fw-bold">1. Consent</h6>
+                    <p class="text-muted small mb-0">
+                        Review and grant consent for your intake to be shared with the care team.
+                    </p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body text-center">
+                    <i class="bi bi-robot text-primary fs-2 d-block mb-2"></i>
+                    <h6 class="fw-bold">2. Describe your symptoms</h6>
+                    <p class="text-muted small mb-0">
+                        Answer a guided conversation with the AI assistant. You can also add
+                        lifestyle (AYUSH) details and upload prior reports.
+                    </p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body text-center">
+                    <i class="bi bi-person-badge text-primary fs-2 d-block mb-2"></i>
+                    <h6 class="fw-bold">3. Physician review</h6>
+                    <p class="text-muted small mb-0">
+                        A qualified healthcare professional reviews, verifies, and prepares your
+                        case for the visit.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Previous intakes ──────────────────────────────────────────── -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white py-3">
+            <h6 class="fw-bold mb-0"><i class="bi bi-clock-history me-2 text-primary"></i>Your intakes</h6>
+        </div>
+        <div class="card-body p-0">
+            <div th:if="${#lists.isEmpty(intakes)}" class="text-center py-5 text-muted">
+                <i class="bi bi-inbox fs-2 d-block mb-2"></i>
+                <p class="mb-0">No intakes yet. Start your first one above.</p>
+            </div>
+            <div class="table-responsive" th:unless="${#lists.isEmpty(intakes)}">
+                <table class="table table-hover align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Intake</th>
+                            <th>Status</th>
+                            <th class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr th:each="intake : ${intakes}">
+                            <td>
+                                <span class="fw-semibold">#<span th:text="${intake.id}">1</span></span>
+                                <small class="text-muted d-block"
+                                       th:text="${#temporals.format(intake.createdAt, 'dd MMM yyyy HH:mm')}">date</small>
+                            </td>
+                            <td>
+                                <span class="badge"
+                                      th:classappend="${intake.status.name() == 'DRAFT_READY'} ? 'bg-success'
+                                                    : (${intake.status.name() == 'SUBMITTED'} ? 'bg-warning text-dark'
+                                                    : (${intake.status.name() == 'ACCEPTED'} ? 'bg-primary'
+                                                    : (${intake.status.name() == 'REJECTED'} ? 'bg-danger' : 'bg-secondary')))"
+                                      th:text="${intake.status}">Status</span>
+                            </td>
+                            <td class="text-end">
+                                <a th:href="@{/kiosk/intake/{id}/summary(id=${intake.id})}"
+                                   class="btn btn-sm btn-outline-secondary">
+                                    View
+                                </a>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</main>
+
+<div th:replace="~{fragments/footer :: footer}"></div>
+</body>
+</html>

@@ -19,6 +19,8 @@ import org.springframework.security.web.authentication.AuthenticationSuccessHand
 import org.springframework.security.web.authentication.logout.LogoutSuccessHandler;
 import org.springframework.security.web.authentication.logout.SecurityContextLogoutHandler;
 import org.springframework.security.authentication.event.LogoutSuccessEvent;
+import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
+import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
@@ -58,19 +60,28 @@ public class SecurityConfig {
     }
 
     @Bean
+    public SecurityContextRepository securityContextRepository() {
+        return new HttpSessionSecurityContextRepository();
+    }
+
+    @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
             .authenticationProvider(authenticationProvider())
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/login", "/css/**", "/js/**", "/images/**", "/fonts/**", "/error").permitAll()
                 .requestMatchers("/actuator/health").permitAll()
+                .requestMatchers("/kiosk", "/kiosk/language", "/kiosk/login", "/kiosk/register").permitAll()
+                .requestMatchers("/kiosk/**").hasRole("PATIENT")
+                .requestMatchers("/api/kiosk/**").hasRole("PATIENT")
                 .requestMatchers("/admin/**").hasRole("ADMIN")
+                .requestMatchers("/intakes/**").hasAnyRole("ADMIN", "DOCTOR", "NURSE")
                 .requestMatchers("/patients/**").hasAnyRole("ADMIN", "DOCTOR", "NURSE", "RECEPTIONIST")
                 .requestMatchers("/cases/**").hasAnyRole("ADMIN", "DOCTOR", "NURSE")
                 .requestMatchers("/encounters/**").hasAnyRole("ADMIN", "DOCTOR", "NURSE")
                 .requestMatchers("/appointments/**").hasAnyRole("ADMIN", "DOCTOR", "NURSE", "RECEPTIONIST")
                 .requestMatchers("/documents/**").hasAnyRole("ADMIN", "DOCTOR", "NURSE", "RECEPTIONIST")
-                .requestMatchers("/dashboard").authenticated()
+                .requestMatchers("/dashboard").hasAnyRole("ADMIN", "DOCTOR", "NURSE", "RECEPTIONIST")
                 .anyRequest().authenticated()
             )
             .formLogin(form -> form
@@ -114,7 +125,9 @@ public class SecurityConfig {
     @Bean
     public AuthenticationSuccessHandler authenticationSuccessHandler() {
         return (request, response, authentication) -> {
-            response.sendRedirect("/dashboard");
+            boolean isPatient = authentication.getAuthorities().stream()
+                    .anyMatch(a -> "ROLE_PATIENT".equals(a.getAuthority()));
+            response.sendRedirect(isPatient ? "/kiosk/home" : "/dashboard");
         };
     }
 

@@ -3,6 +3,7 @@ package com.patientcase.patient;
 import com.patientcase.appointment.Appointment;
 import com.patientcase.case_management.PatientCase;
 import com.patientcase.document.Document;
+import com.patientcase.user.User;
 import jakarta.persistence.*;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -16,6 +17,10 @@ public class Patient {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id")
+    private User user;
 
     @Column(name = "patient_number", nullable = false, unique = true, length = 20)
     private String patientNumber;
@@ -79,6 +84,9 @@ public class Patient {
     // Getters and Setters
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
+
+    public User getUser() { return user; }
+    public void setUser(User user) { this.user = user; }
 
     public String getPatientNumber() { return patientNumber; }
     public void setPatientNumber(String patientNumber) { this.patientNumber = patientNumber; }

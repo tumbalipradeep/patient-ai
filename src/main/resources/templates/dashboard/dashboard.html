@@ -33,6 +33,20 @@
         <!-- Alerts -->
         <div th:replace="~{fragments/alerts :: alerts}"></div>
 
+        <!-- Pending Intake Review banner -->
+        <div class="alert alert-warning d-flex align-items-center" role="alert"
+             th:if="${stats.pendingIntakes > 0}"
+             sec:authorize="hasAnyRole('ADMIN','DOCTOR','NURSE')">
+            <i class="bi bi-inboxes-fill me-2 fs-5"></i>
+            <div class="flex-grow-1">
+                <strong th:text="${stats.pendingIntakes}">0</strong> patient self-service
+                intake(s) awaiting review.
+            </div>
+            <a th:href="@{/intakes}" class="btn btn-sm btn-warning ms-2">
+                Review now <i class="bi bi-arrow-right"></i>
+            </a>
+        </div>
+
         <!-- Stats Cards -->
         <div class="row g-4 mb-4">
             <div class="col-sm-6 col-xl-3">

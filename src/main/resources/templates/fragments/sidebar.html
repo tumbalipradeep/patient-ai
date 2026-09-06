@@ -5,13 +5,18 @@
 <nav th:fragment="sidebar" class="sidebar d-flex flex-column p-3" aria-label="Main Navigation">
     <div class="sidebar-brand mb-4 d-flex align-items-center">
         <i class="bi bi-heart-pulse-fill text-primary me-2 fs-4"></i>
-        <span class="fw-bold fs-5">PatientCase</span>
+        <span class="fw-bold fs-5">MediKiosk</span>
     </div>
 
     <ul class="nav nav-pills flex-column mb-auto">
         <li class="nav-item mb-1">
             <a th:href="@{/dashboard}" class="nav-link sidebar-link">
                 <i class="bi bi-speedometer2 me-2"></i>Dashboard
+            </a>
+        </li>
+        <li class="nav-item mb-1" sec:authorize="hasAnyRole('ADMIN','DOCTOR','NURSE')">
+            <a th:href="@{/intakes}" class="nav-link sidebar-link">
+                <i class="bi bi-inboxes me-2"></i>Intake Review
             </a>
         </li>
         <li class="nav-item mb-1">

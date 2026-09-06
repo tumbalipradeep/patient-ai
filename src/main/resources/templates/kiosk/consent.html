@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{fragments/head :: head('Consent')}"></head>
+<body class="app-body bg-light">
+<div th:replace="~{fragments/kiosk-nav :: kiosk-nav}"></div>
+
+<main class="container py-4" style="max-width:780px;">
+    <div class="content-header mb-4">
+        <h2 class="h4 fw-bold mb-0">Your consent</h2>
+        <p class="text-muted small mb-0">Please review how your information will be used before starting.</p>
+    </div>
+
+    <div th:replace="~{fragments/alerts :: alerts}"></div>
+
+    <div class="card border-0 shadow-sm">
+        <div class="card-body p-4">
+            <div class="alert alert-success d-flex align-items-center" role="alert"
+                 th:if="${consentGranted}">
+                <i class="bi bi-check-circle-fill fs-4 me-2"></i>
+                <div>
+                    <strong>Consent granted.</strong> You can now proceed with your intake.
+                </div>
+            </div>
+
+            <h5 class="fw-bold"><i class="bi bi-shield-check text-primary me-2"></i>MediKiosk consent</h5>
+            <p class="text-muted small">
+                Purpose: <span th:text="${purpose}">patient_intake</span> ·
+                Version: <span th:text="${version}">1.0</span>
+            </p>
+
+            <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                    <div class="border rounded-3 p-3 h-100">
+                        <h6 class="fw-semibold text-success"><i class="bi bi-check2-circle me-1"></i>We will</h6>
+                        <ul class="small text-muted mb-0 ps-3">
+                            <li>Use your answers to prepare your case.</li>
+                            <li>Share the summary only with the treating care team.</li>
+                            <li>Keep a secure, audited record of your intake.</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="border rounded-3 p-3 h-100">
+                        <h6 class="fw-semibold text-danger"><i class="bi bi-x-circle me-1"></i>We will not</h6>
+                        <ul class="small text-muted mb-0 ps-3">
+                            <li>Send your data to any third party.</li>
+                            <li>Use your data beyond your care without fresh consent.</li>
+                            <li>Treat AI output as a diagnosis — a clinician always reviews.</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <p class="small text-muted mb-4">
+                You may withdraw consent at any time by contacting the reception desk. Withdrawal
+                does not affect care already provided, and your clinical care never depends on
+                using this portal.
+            </p>
+
+            <form th:action="@{/kiosk/consent}" method="post">
+                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                <button type="submit" class="btn btn-primary btn-lg px-5 py-2 fw-semibold"
+                        th:disabled="${consentGranted}">
+                    <i class="bi bi-hand-thumbs-up me-2"></i>
+                    <span th:text="${consentGranted ? 'Consent on record' : 'I agree — continue to intake'}">I agree</span>
+                </button>
+            </form>
+        </div>
+    </div>
+</main>
+
+<div th:replace="~{fragments/footer :: footer}"></div>
+</body>
+</html>

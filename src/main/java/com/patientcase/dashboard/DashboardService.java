@@ -6,6 +6,7 @@ import com.patientcase.case_management.PatientCase;
 import com.patientcase.case_management.PatientCaseService;
 import com.patientcase.encounter.Encounter;
 import com.patientcase.encounter.EncounterService;
+import com.patientcase.kiosk.KioskIntakeService;
 import com.patientcase.patient.PatientService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,15 +20,18 @@ public class DashboardService {
     private final PatientCaseService caseService;
     private final EncounterService encounterService;
     private final AppointmentService appointmentService;
+    private final KioskIntakeService intakeService;
 
     public DashboardService(PatientService patientService,
                              PatientCaseService caseService,
                              EncounterService encounterService,
-                             AppointmentService appointmentService) {
+                             AppointmentService appointmentService,
+                             KioskIntakeService intakeService) {
         this.patientService = patientService;
         this.caseService = caseService;
         this.encounterService = encounterService;
         this.appointmentService = appointmentService;
+        this.intakeService = intakeService;
     }
 
     @Transactional(readOnly = true)
@@ -36,6 +40,7 @@ public class DashboardService {
         stats.setTotalPatients(patientService.countAll());
         stats.setActiveCases(caseService.countActiveCases());
         stats.setTodayAppointments(appointmentService.countTodayAppointments());
+        stats.setPendingIntakes(intakeService.countPendingReview());
 
         List<Encounter> recentEncounters = encounterService.findRecentEncounters(5);
         stats.setRecentEncounters(recentEncounters);
@@ -53,6 +58,7 @@ public class DashboardService {
         private long totalPatients;
         private long activeCases;
         private long todayAppointments;
+        private long pendingIntakes;
         private List<Encounter> recentEncounters;
         private List<Appointment> upcomingAppointments;
         private List<PatientCase> recentCases;
@@ -65,6 +71,9 @@ public class DashboardService {
 
         public long getTodayAppointments() { return todayAppointments; }
         public void setTodayAppointments(long todayAppointments) { this.todayAppointments = todayAppointments; }
+
+        public long getPendingIntakes() { return pendingIntakes; }
+        public void setPendingIntakes(long pendingIntakes) { this.pendingIntakes = pendingIntakes; }
 
         public List<Encounter> getRecentEncounters() { return recentEncounters; }
         public void setRecentEncounters(List<Encounter> recentEncounters) { this.recentEncounters = recentEncounters; }

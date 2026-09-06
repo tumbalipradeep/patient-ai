@@ -239,9 +239,10 @@ public class AiDraftValidator {
 
     /**
      * Serialise a validated draft back to JSON for storage.
-     * Package-private — used by AiIntakeSessionService.
+     * Public so the same validator-backed JSON format is reusable across
+     * the clinical (ai_intake_sessions) and patient (kiosk_intakes) workflows.
      */
-    String serialise(AiDraftDto dto) {
+    public String serialise(AiDraftDto dto) {
         try {
             return objectMapper.writeValueAsString(dto);
         } catch (Exception e) {
@@ -253,7 +254,7 @@ public class AiDraftValidator {
      * Deserialise stored draft JSON back to {@link AiDraftDto} without re-validation.
      * The stored draft was already validated at save time.
      */
-    AiDraftDto deserialise(String json) {
+    public AiDraftDto deserialise(String json) {
         if (json == null || json.isBlank()) return null;
         try {
             return objectMapper.readValue(json, AiDraftDto.class);

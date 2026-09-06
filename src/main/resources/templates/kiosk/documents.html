@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{fragments/head :: head('Upload Documents')}"></head>
+<body class="app-body bg-light">
+<div th:replace="~{fragments/kiosk-nav :: kiosk-nav}"></div>
+
+<main class="container py-4" style="max-width:860px;">
+    <div class="content-header d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="h4 fw-bold mb-0">
+                <i class="bi bi-upload me-2 text-primary"></i>Upload your records
+            </h2>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0">
+                    <li class="breadcrumb-item"><a th:href="@{/kiosk/home}">Home</a></li>
+                    <li class="breadcrumb-item">
+                        <a th:href="@{/kiosk/intake/{id}(id=${intake.id})}">Intake</a>
+                    </li>
+                    <li class="breadcrumb-item active">Documents</li>
+                </ol>
+            </nav>
+        </div>
+    </div>
+
+    <div th:replace="~{fragments/alerts :: alerts}"></div>
+
+    <!-- Digitization status callout -->
+    <div class="alert d-flex align-items-center mb-4" role="alert"
+         th:classappend="${digitizationAvailable} ? 'alert-success' : 'alert-info'">
+        <i class="bi bi-stars fs-5 me-2"></i>
+        <div>
+            <th:block th:if="${digitizationAvailable}">
+                Document digitization is <strong>available</strong>
+                (provider: <span th:text="${digitizationProvider}">…</span>). Uploaded reports may be
+                automatically summarized for your physician.
+            </th:block>
+            <th:block th:unless="${digitizationAvailable}">
+                Automated document digitization is <strong>currently unavailable</strong> in this
+                deployment. Files you upload are securely stored and will be reviewed manually by the
+                care team.
+            </th:block>
+        </div>
+    </div>
+
+    <!-- Upload form -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white py-3">
+            <h6 class="fw-bold mb-0"><i class="bi bi-cloud-arrow-up me-2 text-primary"></i>Upload a new document</h6>
+        </div>
+        <div class="card-body">
+            <form th:action="@{/kiosk/intake/{id}/documents(id=${intake.id})}"
+                  method="post" enctype="multipart/form-data">
+                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                <div class="mb-3">
+                    <label for="description" class="form-label fw-semibold">Document type / description</label>
+                    <input type="text" id="description" name="description" class="form-control"
+                           placeholder="e.g. Previous prescription, blood test report, discharge summary"
+                           maxlength="200"/>
+                </div>
+                <div class="mb-3">
+                    <label for="file" class="form-label fw-semibold">File</label>
+                    <input type="file" id="file" name="file" class="form-control" required
+                           accept=".pdf,.jpg,.jpeg,.png,.webp"/>
+                    <div class="form-text">PDF or image (JPG, PNG, WEBP). Max 10 MB.</div>
+                </div>
+                <button type="submit" class="btn btn-primary px-4">
+                    <i class="bi bi-upload me-1"></i>Upload
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Document list -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white py-3">
+            <h6 class="fw-bold mb-0"><i class="bi bi-folder2-open me-2 text-primary"></i>Your documents</h6>
+        </div>
+        <div class="card-body p-0">
+            <div th:if="${#lists.isEmpty(documents)}" class="text-center py-5 text-muted">
+                <i class="bi bi-folder-plus fs-2 d-block mb-2"></i>
+                <p class="mb-0">No documents uploaded yet.</p>
+            </div>
+            <div class="table-responsive" th:unless="${#lists.isEmpty(documents)}">
+                <table class="table table-hover align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Description</th>
+                            <th>Uploaded</th>
+                            <th>Digitization</th>
+                            <th class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr th:each="doc : ${documents}">
+                            <td>
+                                <span class="fw-semibold" th:text="${doc.description ?: doc.originalFilename}">description</span>
+                                <small class="text-muted d-block" th:text="${doc.originalFilename}">file</small>
+                            </td>
+                            <td>
+                                <small class="text-muted"
+                                       th:text="${#temporals.format(doc.uploadedAt, 'dd MMM yyyy')}">date</small>
+                            </td>
+                            <td>
+                                <th:block th:if="${extractionsByDocument.containsKey(doc.id)}"
+                                          th:with="ex=${extractionsByDocument[doc.id]}">
+                                    <span class="badge"
+                                          th:classappend="${ex.status.name() == 'COMPLETED'} ? 'bg-success'
+                                                        : (${ex.status.name() == 'FAILED' or ex.status.name() == 'UNSUPPORTED'} ? 'bg-secondary'
+                                                        : (${ex.status.name() == 'PROCESSING'} ? 'bg-info text-dark' : 'bg-warning text-dark'))"
+                                          th:text="${ex.status}">Status</span>
+<small class="text-muted d-block" th:if="${ex.provider}"
+                                       th:text="${'Provider: ' + ex.provider}">provider</small>
+                                </th:block>
+                                <span class="text-muted small" th:unless="${extractionsByDocument.containsKey(doc.id)}">
+                                    Not requested
+                                </span>
+                            </td>
+                            <td class="text-end">
+                                <a th:href="@{/kiosk/document/{id}/download(id=${doc.id})}"
+                                   class="btn btn-sm btn-outline-secondary">
+                                    <i class="bi bi-download me-1"></i>Download
+                                </a>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</main>
+
+<div th:replace="~{fragments/footer :: footer}"></div>
+</body>
+</html>

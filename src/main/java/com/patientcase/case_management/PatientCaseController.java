@@ -38,10 +38,12 @@ public class PatientCaseController {
     @PostMapping("/new")
     public String createCase(@Valid @ModelAttribute("caseForm") CaseCreateRequest request,
                               BindingResult result,
+                              Model model,
                               RedirectAttributes redirectAttributes) {
         if (result.hasErrors()) {
-            redirectAttributes.addFlashAttribute("errorMessage", "Please correct the form errors.");
-            return "redirect:/patients/" + request.getPatientId();
+            model.addAttribute("caseStatuses", CaseStatus.values());
+            model.addAttribute("casePriorities", CasePriority.values());
+            return "cases/new";
         }
         PatientCase patientCase = caseService.createCase(request);
         redirectAttributes.addFlashAttribute("successMessage",
